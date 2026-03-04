@@ -4,7 +4,7 @@ from typing import Iterable, List, Optional, Tuple, Union
 from typing_extensions import Protocol
 
 import numpy as np
-import keras
+import tf_keras as keras
 
 from delft.utilities.Embeddings import Embeddings
 from delft.sequenceLabelling.preprocess import (
@@ -640,12 +640,13 @@ class DataGenerator(keras.utils.Sequence):
                 extend=extend,
                 label_indices=not self.use_chain_crf
             )
+            batch_y = np.asarray(truncate_batch_values(batch_y, max_length_x), dtype=np.int32)
         else:
             batches = self.preprocessor.transform(
                 padded_batch_text_list, extend=extend
             )
 
-        batch_c = np.asarray(batches[0], dtype=object)
+        batch_c = np.asarray(batches[0], dtype=np.int32)
 
         batch_l = batches[1]
 
