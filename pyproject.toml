@@ -13,7 +13,6 @@ tf = [
     "tensorflow>=2.17.1",
 ]
 delft = [
-    "blingfire==0.1.8",
     "delft>=0.4.0",
 ]
 
