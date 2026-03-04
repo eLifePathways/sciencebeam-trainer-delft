@@ -324,12 +324,6 @@ class Sequence(_Sequence):
                 used_features_indices=self.model_config.features_indices
             )
 
-    def clear_embedding_cache(self):
-        if not self.embeddings:
-            return
-        if self.embeddings.use_ELMo:
-            self.embeddings.clean_ELMo_cache()
-
     def train(  # pylint: disable=arguments-differ
         self,
         x_train,
@@ -408,7 +402,6 @@ class Sequence(_Sequence):
             x_train, y_train, x_valid, y_valid,
             features_train=features_train, features_valid=features_valid
         )
-        self.clear_embedding_cache()
 
     def get_model_saver(self):
         return ModelSaver(
@@ -467,9 +460,6 @@ class Sequence(_Sequence):
             features_train=features_train,
             features_valid=features_valid
         )
-        if self.embeddings:
-            if self.embeddings.use_ELMo:
-                self.embeddings.clean_ELMo_cache()
 
     def eval(  # pylint: disable=arguments-differ
         self,
@@ -723,8 +713,7 @@ class Sequence(_Sequence):
         embedding_name = self.embedding_manager.ensure_available(embedding_name)
         LOGGER.info('embedding_name: %s', embedding_name)
         embeddings = self.embedding_manager.get_embeddings_for_name(
-            embedding_name,
-            use_ELMo=model_config.use_ELMo
+            embedding_name
         )
         if embeddings.embed_size <= 0:
             raise AssertionError(

@@ -159,7 +159,6 @@ def _preprocessor():
 def _embeddings():
     embeddings = MagicMock(name='embeddings')
     embeddings.get_word_vector.side_effect = get_word_vector
-    embeddings.use_ELMo = False
     embeddings.embed_size = len(get_word_vector(WORD_1))
     return embeddings
 

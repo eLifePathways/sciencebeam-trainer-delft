@@ -9,7 +9,6 @@ import keras
 from delft.utilities.Embeddings import Embeddings
 from delft.sequenceLabelling.preprocess import (
     to_vector_single, to_casing_single,
-    # to_vector_simple_with_elmo,
     # to_vector_simple_with_bert,
     Preprocessor,
     PAD

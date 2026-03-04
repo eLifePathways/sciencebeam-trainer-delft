@@ -162,7 +162,6 @@ class GrobidTrainerSubCommand(SubCommand):
     def get_train_args(self, args: argparse.Namespace) -> dict:
         return dict(
             architecture=args.architecture,
-            use_ELMo=args.use_ELMo,
             output_path=args.output,
             log_dir=args.checkpoint,
             char_emb_size=args.char_embedding_size,

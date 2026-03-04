@@ -370,12 +370,6 @@ class Trainer(_Trainer):
             )
         nb_workers = 6
         multiprocessing = self.multiprocessing
-        # multiple workers will not work with ELMo due to GPU memory limit (with GTX 1080Ti 11GB)
-        if self.embeddings and self.embeddings.use_ELMo:
-            # worker at 0 means the training will be executed in the main thread
-            nb_workers = 0
-            multiprocessing = False
-            # dump token context independent data for train set, done once for the training
 
         local_model.fit_generator(
             generator=training_generator,
