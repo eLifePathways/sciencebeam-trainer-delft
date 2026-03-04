@@ -5,7 +5,7 @@ import json
 import os
 from typing import Optional
 
-from keras.models import Model
+from tf_keras.models import Model
 
 from sciencebeam_trainer_delft.utils.cloud_support import auto_upload_from_local_file
 from sciencebeam_trainer_delft.utils.io import open_file, write_text

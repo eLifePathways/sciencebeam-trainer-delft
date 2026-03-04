@@ -6,8 +6,8 @@ from typing import List, Optional
 import numpy as np
 from sklearn.metrics import log_loss, roc_auc_score
 
-from keras.models import Model
-from keras.callbacks import Callback
+from tf_keras.models import Model
+from tf_keras.callbacks import Callback
 
 from sciencebeam_trainer_delft.text_classification.saving import (
     ModelSaver

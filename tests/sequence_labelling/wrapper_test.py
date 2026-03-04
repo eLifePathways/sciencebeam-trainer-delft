@@ -5,7 +5,7 @@ from typing import Dict
 import pytest
 
 import numpy as np
-import keras
+import tf_keras as keras
 
 from delft.sequenceLabelling.preprocess import (
     Preprocessor as DelftWordPreprocessor,

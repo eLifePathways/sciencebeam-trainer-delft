@@ -8,7 +8,7 @@ import sciencebeam_trainer_delft.utils.no_warn_if_disabled  # noqa, pylint: disa
 import sciencebeam_trainer_delft.utils.no_keras_backend_message  # noqa, pylint: disable=unused-import
 # pylint: disable=wrong-import-order, ungrouped-imports
 
-import keras.backend as K
+import tf_keras.backend as K
 
 import pandas as pd
 
