@@ -7,11 +7,13 @@ from typing import Sequence as TypingSequence
 
 import numpy as np
 
+from delft import DELFT_PROJECT_DIR
 from delft.sequenceLabelling.models import BaseModel
 from delft.sequenceLabelling.preprocess import Preprocessor, FeaturesPreprocessor
 from delft.sequenceLabelling.wrapper import Sequence as _Sequence
 from delft.sequenceLabelling.config import TrainingConfig as DelftTrainingConfig
 
+from sciencebeam_trainer_delft.resources.default_config import DEFAULT_RESOURCE_REGISTRY_FILE
 from sciencebeam_trainer_delft.sequence_labelling.typing import (
     T_Batch_Features_Array,
     T_Batch_Label_Array,
@@ -77,6 +79,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 DEFAUT_MODEL_PATH = 'data/models/sequenceLabelling/'
+DELFT_PROJECT_EMBEDDINGS_PATH = os.path.join(DELFT_PROJECT_DIR, 'resources-registry.json')
 DEFAULT_EMBEDDINGS_PATH = 'delft/resources-registry.json'
 
 
@@ -196,6 +199,18 @@ def get_model_directory(model_name: str, dir_path: Optional[str] = None):
     return os.path.join(dir_path or DEFAUT_MODEL_PATH, model_name)
 
 
+def link_resource_registry_file_if_needed(
+    embedding_registry_path: str
+):
+    if not os.path.exists(DELFT_PROJECT_EMBEDDINGS_PATH):
+        LOGGER.info(
+            'linking resource registry file from %s to %s',
+            embedding_registry_path,
+            DELFT_PROJECT_EMBEDDINGS_PATH
+        )
+        os.symlink(embedding_registry_path, DELFT_PROJECT_EMBEDDINGS_PATH)
+
+
 class Sequence(_Sequence):
     def __init__(
         self,
@@ -222,14 +237,8 @@ class Sequence(_Sequence):
         # initialise logging if not already initialised
         logging.basicConfig(level='INFO')
         LOGGER.debug('Sequence, args=%s, kwargs=%s', args, kwargs)
-        if (
-            embedding_registry_path is not None
-            and embedding_registry_path != DEFAULT_EMBEDDINGS_PATH
-        ):
-            raise AssertionError(
-                f'custom embedding_registry_path not supported: {repr(embedding_registry_path)} '
-            )
-        self.embedding_registry_path = embedding_registry_path or DEFAULT_EMBEDDINGS_PATH
+        self.embedding_registry_path = embedding_registry_path or DEFAULT_RESOURCE_REGISTRY_FILE
+        link_resource_registry_file_if_needed(self.embedding_registry_path)
         if embedding_manager is None:
             embedding_manager = EmbeddingManager(
                 path=self.embedding_registry_path,
