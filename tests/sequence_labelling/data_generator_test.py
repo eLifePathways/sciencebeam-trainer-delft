@@ -181,7 +181,7 @@ class TestLeftPadBatchValues:
                 np.asarray([
                     [[1, 1], [2, 2]],
                     [[1, 1]]
-                ]),
+                ], dtype=object),
                 2,
                 dtype='float32'
             ), np.asarray([
@@ -196,7 +196,7 @@ class TestLeftPadBatchValues:
                 np.asarray([
                     [[1, 1], [2, 2], [3, 3]],
                     [[1, 1]]
-                ]),
+                ], dtype=object),
                 2,
                 dtype='float32'
             ), np.asarray([
@@ -212,7 +212,7 @@ class TestLeftPadBatchValues:
                     [],
                     [[1, 1], [2, 2]],
                     [[1, 1]]
-                ]),
+                ], dtype=object),
                 2,
                 dtype='float32'
             ), np.asarray([
