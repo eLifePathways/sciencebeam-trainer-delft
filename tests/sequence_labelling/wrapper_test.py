@@ -12,6 +12,7 @@ from delft.sequenceLabelling.preprocess import (
     FeaturesPreprocessor as DelftFeaturesPreprocessor
 )
 
+from sciencebeam_trainer_delft.resources.default_config import DEFAULT_RESOURCE_REGISTRY_FILE
 from sciencebeam_trainer_delft.sequence_labelling.preprocess import (
     Preprocessor as ScienceBeamPreprocessor,
     FeaturesPreprocessor as ScienceBeamFeaturesPreprocessor
@@ -20,8 +21,7 @@ from sciencebeam_trainer_delft.sequence_labelling.preprocess import (
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig
 from sciencebeam_trainer_delft.sequence_labelling.wrapper import (
     get_preprocessor,
-    Sequence,
-    DEFAULT_EMBEDDINGS_PATH
+    Sequence
 )
 
 from sciencebeam_trainer_delft.sequence_labelling.transfer_learning import (
@@ -76,8 +76,8 @@ class TestGetPreprocessor:
 class TestSequence:
     def test_should_create_embedding_manager_with_default_regisry_path(self):
         model = Sequence(MODEL_NAME_1)
-        assert model.embedding_registry_path == DEFAULT_EMBEDDINGS_PATH
-        assert model.embedding_manager.path == DEFAULT_EMBEDDINGS_PATH
+        assert model.embedding_registry_path == DEFAULT_RESOURCE_REGISTRY_FILE
+        assert model.embedding_manager.path == DEFAULT_RESOURCE_REGISTRY_FILE
 
 
 def get_layer_by_name_map(keras_model: keras.Model) -> Dict[str, keras.layers.Layer]:

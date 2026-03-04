@@ -80,7 +80,6 @@ LOGGER = logging.getLogger(__name__)
 
 DEFAUT_MODEL_PATH = 'data/models/sequenceLabelling/'
 DELFT_PROJECT_EMBEDDINGS_PATH = os.path.join(DELFT_PROJECT_DIR, 'resources-registry.json')
-DEFAULT_EMBEDDINGS_PATH = 'delft/resources-registry.json'
 
 
 DEFAUT_BATCH_SIZE = 10
