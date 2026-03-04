@@ -674,15 +674,15 @@ class TestDataGenerator:
             np.asarray([
                 LONG_SENTENCE_TOKENS,
                 SHORT_SENTENCE_TOKENS
-            ]),
+            ], dtype=object),
             np.asarray([
                 [LABEL_1] * len(LONG_SENTENCE_TOKENS),
                 [LABEL_2] * len(SHORT_SENTENCE_TOKENS)
-            ]),
+            ], dtype=object),
             features=np.asarray([
                 np.asarray([WORD_FEATURES_1] * len(LONG_SENTENCE_TOKENS)),
                 np.asarray([WORD_FEATURES_2] * len(SHORT_SENTENCE_TOKENS))
-            ]),
+            ], dtype=object),
             preprocessor=preprocessor,
             embeddings=embeddings,
             **{
@@ -708,15 +708,15 @@ class TestDataGenerator:
             np.asarray([
                 ' '.join(LONG_SENTENCE_TOKENS),
                 ' '.join(SHORT_SENTENCE_TOKENS)
-            ]),
+            ], dtype=object),
             np.asarray([
                 [LABEL_1] * len(LONG_SENTENCE_TOKENS),
                 [LABEL_2] * len(SHORT_SENTENCE_TOKENS)
-            ]),
+            ], dtype=object),
             features=np.asarray([
                 np.asarray([WORD_FEATURES_1] * len(LONG_SENTENCE_TOKENS)),
                 np.asarray([WORD_FEATURES_2] * len(SHORT_SENTENCE_TOKENS))
-            ]),
+            ], dtype=object),
             preprocessor=preprocessor,
             embeddings=embeddings,
             max_sequence_length=len(SHORT_SENTENCE_TOKENS),
@@ -745,15 +745,15 @@ class TestDataGenerator:
             np.asarray([
                 LONG_SENTENCE_TOKENS,
                 SHORT_SENTENCE_TOKENS
-            ]),
+            ], dtype=object),
             np.asarray([
                 [LABEL_1] * len(LONG_SENTENCE_TOKENS),
                 [LABEL_2] * len(SHORT_SENTENCE_TOKENS)
-            ]),
+            ], dtype=object),
             features=np.asarray([
                 np.asarray([WORD_FEATURES_1] * len(LONG_SENTENCE_TOKENS)),
                 np.asarray([WORD_FEATURES_2] * len(SHORT_SENTENCE_TOKENS))
-            ]),
+            ], dtype=object),
             preprocessor=preprocessor,
             embeddings=embeddings,
             max_sequence_length=len(SHORT_SENTENCE_TOKENS),
