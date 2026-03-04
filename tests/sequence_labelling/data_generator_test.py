@@ -176,7 +176,7 @@ def all_close(a, b, dtype=np.float32):
 
 class TestLeftPadBatchValues:
     def test_should_left_pad_values(self):
-        all_close(
+        assert all_close(
             left_pad_batch_values(
                 np.asarray([
                     [[1, 1], [2, 2]],
@@ -191,7 +191,7 @@ class TestLeftPadBatchValues:
         )
 
     def test_should_truncate_values(self):
-        all_close(
+        assert all_close(
             left_pad_batch_values(
                 np.asarray([
                     [[1, 1], [2, 2], [3, 3]],
@@ -206,7 +206,7 @@ class TestLeftPadBatchValues:
         )
 
     def test_should_left_pad_zero_length_values(self):
-        all_close(
+        assert all_close(
             left_pad_batch_values(
                 np.asarray([
                     [],
