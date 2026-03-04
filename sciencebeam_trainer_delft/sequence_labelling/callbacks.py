@@ -1,7 +1,7 @@
 import logging
 from typing import Optional
 
-import keras.backend as K
+import tf_keras.backend as K  # type: ignore[import-untyped]
 
 from sciencebeam_trainer_delft.utils.keras.callbacks import ModelSaverCallback
 from sciencebeam_trainer_delft.sequence_labelling.saving import ModelSaver
