@@ -645,7 +645,7 @@ class DataGenerator(keras.utils.Sequence):
                 padded_batch_text_list, extend=extend
             )
 
-        batch_c = np.asarray(batches[0])
+        batch_c = np.asarray(batches[0], dtype=object)
 
         batch_l = batches[1]
 

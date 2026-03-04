@@ -137,7 +137,10 @@ def preprocess_transform(
 
 
 def preprocess_transform_features(features_batch):
-    return np.asarray([get_transformed_features(features) for features in features_batch])
+    return np.asarray(
+        [get_transformed_features(features) for features in features_batch],
+        dtype=object
+    )
 
 
 def get_lengths(a):
