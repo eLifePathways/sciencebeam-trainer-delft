@@ -166,10 +166,12 @@ def _embeddings():
     return embeddings
 
 
-def all_close(a, b):
+def all_close(a, b, dtype=np.float32):
     LOGGER.debug('a: %s', a)
     LOGGER.debug('b: %s', b)
-    return np.allclose(a, b)
+    a_array = np.asarray(a, dtype=dtype)
+    b_array = np.asarray(b, dtype=dtype)
+    return np.allclose(a_array, b_array)
 
 
 class TestLeftPadBatchValues:
