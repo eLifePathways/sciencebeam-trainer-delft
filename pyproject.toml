@@ -11,6 +11,7 @@ dependencies = [
 [project.optional-dependencies]
 tf = [
     "tensorflow>=2.17.1",
+    "wrapt>=1.14.0",
 ]
 delft = [
     "delft>=0.4.0",
