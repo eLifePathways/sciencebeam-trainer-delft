@@ -5,7 +5,7 @@ from typing import List, NamedTuple, Optional
 import numpy as np
 
 import tensorflow as tf
-from keras.callbacks import ProgbarLogger
+from tf_keras.callbacks import ProgbarLogger
 
 from delft.sequenceLabelling.preprocess import (
     Preprocessor as DelftWordPreprocessor
@@ -371,8 +371,9 @@ class Trainer(_Trainer):
         nb_workers = 6
         multiprocessing = self.multiprocessing
 
-        local_model.fit_generator(
-            generator=training_generator,
+        LOGGER.info('local_model: %s', local_model)
+        local_model.fit(
+            training_generator,
             initial_epoch=self.training_config.initial_epoch or 0,
             epochs=max_epoch,
             use_multiprocessing=multiprocessing,

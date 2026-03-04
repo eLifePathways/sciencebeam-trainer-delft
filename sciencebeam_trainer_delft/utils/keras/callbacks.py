@@ -6,7 +6,7 @@ from typing_extensions import Protocol
 
 import numpy as np
 
-from keras.callbacks import Callback, EarlyStopping
+from tf_keras.callbacks import Callback, EarlyStopping
 
 
 LOGGER = logging.getLogger(__name__)
