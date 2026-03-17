@@ -108,6 +108,14 @@ dev-pytest-not-slow:
 		$(PYTHON) -m pytest -v -p no:cacheprovider $(NOT_SLOW_PYTEST_ARGS)
 
 
+dev-pytest-slow-only:
+	PATH=./third-parties/wapiti:$$PATH \
+		TF_USE_LEGACY_KERAS=1 \
+		$(PYTHON) -m pytest -v -p no:cacheprovider \
+		$(SLOW_PYTEST_ARGS) \
+		-p no:cacheprovider -p no:warnings -vv --maxfail=1 $(ARGS)
+
+
 dev-watch:
 	$(PYTHON) -m pytest_watcher \
 		--runner=$(VENV)/bin/python \
