@@ -191,6 +191,13 @@ def _restore_pipeline_steps_state(steps: List[Tuple[str, Any]], state: dict):
         _restore_attributes_state(step_value, step_state)
 
 
+def _migrate_legacy_pipeline_steps_if_necessary(steps: List[Tuple[str, Any]]):
+    for _, step in _iter_nested_pipeline_steps(steps):
+        if isinstance(step, FunctionTransformer) and not hasattr(step, 'feature_names_out'):
+            step.feature_names_out = None
+            LOGGER.info('migrated legacy FunctionTransformer to add feature_names_out=None')
+
+
 def _fit_transformer_with_progress_logging(
     transformer: TransformerMixin,
     X,
@@ -287,7 +294,9 @@ class FeaturesPreprocessor(BaseEstimator, TransformerMixin):
         try:
             if 'pipeline' in state:
                 # original pickle
-                return super().__setstate__(state)
+                super().__setstate__(state)
+                _migrate_legacy_pipeline_steps_if_necessary(self.pipeline.steps)
+                return
             self.features_indices = state['features_indices']
             self.continuous_features_indices = state.get('continuous_features_indices')
             self.pipeline = FeaturesPreprocessor._create_pipeline(
