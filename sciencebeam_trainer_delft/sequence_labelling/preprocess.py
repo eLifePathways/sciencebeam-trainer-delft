@@ -338,10 +338,14 @@ class FeaturesPreprocessor(BaseEstimator, TransformerMixin):
 
     def transform(self, X, **_):
         LOGGER.debug('transform, X: %s', X)
-        return np.asarray([
+        transformed = [
             self.pipeline.transform(sentence_features)
             for sentence_features in X
-        ])
+        ]
+        try:
+            return np.asarray(transformed)
+        except ValueError:
+            return np.asarray(transformed, dtype=object)
 
 
 T_FeaturesPreprocessor = Union[FeaturesPreprocessor, DelftFeaturesPreprocessor]
