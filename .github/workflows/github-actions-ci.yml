@@ -11,7 +11,7 @@ on:
       - main
 
 env:
-  DOCKER_IMAGE_NAME: ghcr.io/elifesciences/sciencebeam-trainer-delft
+  DOCKER_IMAGE_NAME: ghcr.io/elifepathways/sciencebeam-trainer-delft
 
 jobs:
   build-and-test:
