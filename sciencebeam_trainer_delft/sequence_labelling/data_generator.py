@@ -640,13 +640,21 @@ class DataGenerator(keras.utils.Sequence):
                 extend=extend,
                 label_indices=not self.use_chain_crf
             )
-            batch_y = np.asarray(truncate_batch_values(batch_y, max_length_x), dtype=np.int32)
+            truncated_batch_y = truncate_batch_values(batch_y, max_length_x)
+            max_length_y = max(len(y_row) for y_row in truncated_batch_y)
+            batch_y = np.zeros((len(truncated_batch_y), max_length_y), dtype=np.int32)
+            for i, y_row in enumerate(truncated_batch_y):
+                batch_y[i, :len(y_row)] = y_row
         else:
             batches = self.preprocessor.transform(
                 padded_batch_text_list, extend=extend
             )
 
-        batch_c = np.asarray(batches[0], dtype=np.int32)
+        batch_c = left_pad_batch_values(
+            np.asarray(batches[0], dtype=object),
+            max_length_x,
+            dtype=np.int32
+        )
 
         batch_l = batches[1]
 
