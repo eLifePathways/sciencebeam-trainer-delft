@@ -296,7 +296,7 @@ class FeaturesPreprocessor(BaseEstimator, TransformerMixin):
                 # original pickle
                 super().__setstate__(state)
                 _migrate_legacy_pipeline_steps_if_necessary(self.pipeline.steps)
-                return
+                return self
             self.features_indices = state['features_indices']
             self.continuous_features_indices = state.get('continuous_features_indices')
             self.pipeline = FeaturesPreprocessor._create_pipeline(
