@@ -1,4 +1,4 @@
-FROM ghcr.io/astral-sh/uv:python3.9-bookworm AS dev
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm AS dev
 
 # # install gcloud to make it easier to access cloud storage
 # RUN mkdir -p /usr/local/gcloud \
