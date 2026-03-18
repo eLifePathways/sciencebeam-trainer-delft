@@ -7,7 +7,6 @@ from typing import Sequence as TypingSequence
 
 import numpy as np
 
-from delft import DELFT_PROJECT_DIR
 from delft.sequenceLabelling.models import BaseModel
 from delft.sequenceLabelling.preprocess import Preprocessor, FeaturesPreprocessor
 from delft.sequenceLabelling.wrapper import Sequence as _Sequence
@@ -79,7 +78,6 @@ LOGGER = logging.getLogger(__name__)
 
 
 DEFAUT_MODEL_PATH = 'data/models/sequenceLabelling/'
-DELFT_PROJECT_EMBEDDINGS_PATH = os.path.join(DELFT_PROJECT_DIR, 'resources-registry.json')
 
 
 DEFAUT_BATCH_SIZE = 10
@@ -198,18 +196,6 @@ def get_model_directory(model_name: str, dir_path: Optional[str] = None):
     return os.path.join(dir_path or DEFAUT_MODEL_PATH, model_name)
 
 
-def link_resource_registry_file_if_needed(
-    embedding_registry_path: str
-):
-    if not os.path.exists(DELFT_PROJECT_EMBEDDINGS_PATH):
-        LOGGER.info(
-            'linking resource registry file from %s to %s',
-            embedding_registry_path,
-            DELFT_PROJECT_EMBEDDINGS_PATH
-        )
-        os.symlink(embedding_registry_path, DELFT_PROJECT_EMBEDDINGS_PATH)
-
-
 class Sequence(_Sequence):
     def __init__(
         self,
@@ -237,7 +223,6 @@ class Sequence(_Sequence):
         logging.basicConfig(level='INFO')
         LOGGER.debug('Sequence, args=%s, kwargs=%s', args, kwargs)
         self.embedding_registry_path = embedding_registry_path or DEFAULT_RESOURCE_REGISTRY_FILE
-        link_resource_registry_file_if_needed(self.embedding_registry_path)
         if embedding_manager is None:
             embedding_manager = EmbeddingManager(
                 path=self.embedding_registry_path,
@@ -269,6 +254,7 @@ class Sequence(_Sequence):
             *args,
             max_sequence_length=max_sequence_length,
             batch_size=batch_size,
+            resource_registry_path=self.embedding_registry_path,
             **kwargs
         )
         LOGGER.debug('use_features=%s', use_features)
