@@ -18,7 +18,7 @@ delft = [
 ]
 
 [tool.uv.sources]
-delft = { git = "https://github.com/kermitt2/delft" }
+delft = { git = "https://github.com/kermitt2/delft", branch = "bugfix/fix-hardcoded-resource-file" }
 
 [dependency-groups]
 dev = [

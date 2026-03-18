@@ -190,8 +190,8 @@ wheels = [
 
 [[package]]
 name = "delft"
-version = "0.3.4"
-source = { git = "https://github.com/kermitt2/delft#ba4f2b812fb6236d2d55a23dcc0cbd527605022a" }
+version = "0.3.5"
+source = { git = "https://github.com/kermitt2/delft?branch=bugfix%2Ffix-hardcoded-resource-file#a9918d72b47f480544506861197be1706aebf847" }
 dependencies = [
     { name = "accelerate" },
     { name = "blingfire2" },
@@ -1659,7 +1659,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "delft", marker = "extra == 'delft'", git = "https://github.com/kermitt2/delft" },
+    { name = "delft", marker = "extra == 'delft'", git = "https://github.com/kermitt2/delft?branch=bugfix%2Ffix-hardcoded-resource-file" },
     { name = "jsonpickle", specifier = ">=1.4.1" },
     { name = "tensorflow", marker = "extra == 'tf'", specifier = ">=2.17.1" },
     { name = "wrapt", marker = "extra == 'tf'", specifier = ">=1.14.0" },
