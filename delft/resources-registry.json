@@ -22,5 +22,6 @@
         "glove.840B.300d": "glove-840B"
     },
     "embeddings-contextualized": [],
+    "embedding-download-path": "data/download",
     "embedding-lmdb-path": "data/db"
 }
