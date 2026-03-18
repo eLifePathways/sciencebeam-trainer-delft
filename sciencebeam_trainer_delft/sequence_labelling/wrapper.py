@@ -222,7 +222,11 @@ class Sequence(_Sequence):
         # initialise logging if not already initialised
         logging.basicConfig(level='INFO')
         LOGGER.debug('Sequence, args=%s, kwargs=%s', args, kwargs)
-        self.embedding_registry_path = embedding_registry_path or DEFAULT_RESOURCE_REGISTRY_FILE
+        self.embedding_registry_path = (
+            embedding_registry_path
+            or (embedding_manager.path if embedding_manager else None)
+            or DEFAULT_RESOURCE_REGISTRY_FILE
+        )
         if embedding_manager is None:
             embedding_manager = EmbeddingManager(
                 path=self.embedding_registry_path,
