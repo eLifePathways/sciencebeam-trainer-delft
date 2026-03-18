@@ -135,7 +135,7 @@ def iter_predict_texts_with_sliding_window_if_enabled(
             current_offset = sum((len(a) for a in current_prediction_list))
             if current_offset > text_offset:
                 # skip over the overlapping window
-                seq_predictions = seq_predictions[(current_offset - text_offset):, :]
+                seq_predictions = seq_predictions[(current_offset - text_offset):]
                 text_offset = current_offset
             assert (
                 current_offset == text_offset
