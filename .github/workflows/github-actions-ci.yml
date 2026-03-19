@@ -73,7 +73,7 @@ jobs:
             ${{ steps.set_tags.outputs.tag_lines }}
             python-dist.args.python_package_version=${{ steps.set_tags.outputs.python_package_version }}
             python-dist.output=type=local,dest=./dist-export
-            delft.output=type=registry
+            ${{ github.event_name != 'pull_request' && 'delft.output=type=registry' || '' }}
           push: false
           load: false
 
