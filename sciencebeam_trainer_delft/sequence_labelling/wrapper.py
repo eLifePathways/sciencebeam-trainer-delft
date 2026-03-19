@@ -12,6 +12,7 @@ from delft.sequenceLabelling.preprocess import Preprocessor, FeaturesPreprocesso
 from delft.sequenceLabelling.wrapper import Sequence as _Sequence
 from delft.sequenceLabelling.config import TrainingConfig as DelftTrainingConfig
 
+from sciencebeam_trainer_delft.resources.default_config import DEFAULT_RESOURCE_REGISTRY_FILE
 from sciencebeam_trainer_delft.sequence_labelling.typing import (
     T_Batch_Features_Array,
     T_Batch_Label_Array,
@@ -77,7 +78,6 @@ LOGGER = logging.getLogger(__name__)
 
 
 DEFAUT_MODEL_PATH = 'data/models/sequenceLabelling/'
-DEFAULT_EMBEDDINGS_PATH = 'delft/resources-registry.json'
 
 
 DEFAUT_BATCH_SIZE = 10
@@ -222,14 +222,11 @@ class Sequence(_Sequence):
         # initialise logging if not already initialised
         logging.basicConfig(level='INFO')
         LOGGER.debug('Sequence, args=%s, kwargs=%s', args, kwargs)
-        if (
-            embedding_registry_path is not None
-            and embedding_registry_path != DEFAULT_EMBEDDINGS_PATH
-        ):
-            raise AssertionError(
-                f'custom embedding_registry_path not supported: {repr(embedding_registry_path)} '
-            )
-        self.embedding_registry_path = embedding_registry_path or DEFAULT_EMBEDDINGS_PATH
+        self.embedding_registry_path = (
+            embedding_registry_path
+            or (embedding_manager.path if embedding_manager else None)
+            or DEFAULT_RESOURCE_REGISTRY_FILE
+        )
         if embedding_manager is None:
             embedding_manager = EmbeddingManager(
                 path=self.embedding_registry_path,
@@ -261,6 +258,7 @@ class Sequence(_Sequence):
             *args,
             max_sequence_length=max_sequence_length,
             batch_size=batch_size,
+            resource_registry_path=self.embedding_registry_path,
             **kwargs
         )
         LOGGER.debug('use_features=%s', use_features)
@@ -314,12 +312,6 @@ class Sequence(_Sequence):
                 self.model_config.unroll_text_feature_index,
                 used_features_indices=self.model_config.features_indices
             )
-
-    def clear_embedding_cache(self):
-        if not self.embeddings:
-            return
-        if self.embeddings.use_ELMo:
-            self.embeddings.clean_ELMo_cache()
 
     def train(  # pylint: disable=arguments-differ
         self,
@@ -399,7 +391,6 @@ class Sequence(_Sequence):
             x_train, y_train, x_valid, y_valid,
             features_train=features_train, features_valid=features_valid
         )
-        self.clear_embedding_cache()
 
     def get_model_saver(self):
         return ModelSaver(
@@ -458,9 +449,6 @@ class Sequence(_Sequence):
             features_train=features_train,
             features_valid=features_valid
         )
-        if self.embeddings:
-            if self.embeddings.use_ELMo:
-                self.embeddings.clean_ELMo_cache()
 
     def eval(  # pylint: disable=arguments-differ
         self,
@@ -714,8 +702,7 @@ class Sequence(_Sequence):
         embedding_name = self.embedding_manager.ensure_available(embedding_name)
         LOGGER.info('embedding_name: %s', embedding_name)
         embeddings = self.embedding_manager.get_embeddings_for_name(
-            embedding_name,
-            use_ELMo=model_config.use_ELMo
+            embedding_name
         )
         if embeddings.embed_size <= 0:
             raise AssertionError(

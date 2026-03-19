@@ -2,8 +2,8 @@ import logging
 import json
 from typing import Dict, List, Type, Union
 
-from keras.models import Model
-from keras.layers import (
+from tf_keras.models import Model
+from tf_keras.layers import (
     Concatenate,
     Dense, LSTM, Bidirectional, Embedding, Input, Dropout,
     TimeDistributed

@@ -111,7 +111,7 @@ python -m sciencebeam_trainer_delft.sequence_labelling.grobid_trainer \
     --batch-size="10" \
     --embedding="https://github.com/elifesciences/sciencebeam-models/releases/download/v0.0.1/glove.6B.50d.txt.xz" \
     --max-sequence-length="100" \
-    --inputhttps://github.com/elifesciences/sciencebeam-datasets/releases/download/grobid-0.8.2/delft-grobid-0.8.2-header.train.gz \
+    --input=https://github.com/elifesciences/sciencebeam-datasets/releases/download/grobid-0.8.2/delft-grobid-0.8.2-header.train.gz \
     --limit="100" \
     --eval-input=https://github.com/elifesciences/sciencebeam-datasets/releases/download/v0.0.1/delft-grobid-0.5.6-header.test.gz \
     --eval-limit="100" \

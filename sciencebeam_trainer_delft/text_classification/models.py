@@ -6,8 +6,8 @@ from typing import List, Optional
 import numpy as np
 from sklearn.metrics import log_loss, roc_auc_score
 
-from keras.models import Model
-from keras.callbacks import Callback
+from tf_keras.models import Model
+from tf_keras.callbacks import Callback
 
 from sciencebeam_trainer_delft.text_classification.saving import (
     ModelSaver
@@ -56,7 +56,6 @@ def train_model(  # pylint: disable=too-many-statements
     training_generator,
     validation_generator,
     val_y,
-    use_ELMo=False,
     multiprocessing: bool = True,
     nb_workers: int = 6,
     callbacks: Optional[List[Callback]] = None
@@ -67,10 +66,6 @@ def train_model(  # pylint: disable=too-many-statements
     best_epoch = 0
     current_epoch = 1
 
-    if use_ELMo:
-        # worker at 0 means the training will be executed in the main thread
-        nb_workers = 0
-        multiprocessing = False
     while current_epoch <= max_epoch:
         model.fit_generator(
             generator=training_generator,

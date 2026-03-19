@@ -5,7 +5,7 @@ from typing import List, NamedTuple, Optional
 import numpy as np
 
 import tensorflow as tf
-from keras.callbacks import ProgbarLogger
+from tf_keras.callbacks import ProgbarLogger
 
 from delft.sequenceLabelling.preprocess import (
     Preprocessor as DelftWordPreprocessor
@@ -370,15 +370,10 @@ class Trainer(_Trainer):
             )
         nb_workers = 6
         multiprocessing = self.multiprocessing
-        # multiple workers will not work with ELMo due to GPU memory limit (with GTX 1080Ti 11GB)
-        if self.embeddings and self.embeddings.use_ELMo:
-            # worker at 0 means the training will be executed in the main thread
-            nb_workers = 0
-            multiprocessing = False
-            # dump token context independent data for train set, done once for the training
 
-        local_model.fit_generator(
-            generator=training_generator,
+        LOGGER.info('local_model: %s', local_model)
+        local_model.fit(
+            training_generator,
             initial_epoch=self.training_config.initial_epoch or 0,
             epochs=max_epoch,
             use_multiprocessing=multiprocessing,

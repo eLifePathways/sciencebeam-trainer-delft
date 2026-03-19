@@ -98,7 +98,22 @@ dev-lint: dev-flake8 dev-pylint dev-mypy
 
 dev-pytest:
 	PATH=./third-parties/wapiti:$$PATH \
-	$(PYTHON) -m pytest -v -p no:cacheprovider $(ARGS)
+		TF_USE_LEGACY_KERAS=1 \
+		$(PYTHON) -m pytest -v -p no:cacheprovider $(ARGS)
+
+
+dev-pytest-not-slow:
+	PATH=./third-parties/wapiti:$$PATH \
+		TF_USE_LEGACY_KERAS=1 \
+		$(PYTHON) -m pytest -v -p no:cacheprovider $(NOT_SLOW_PYTEST_ARGS)
+
+
+dev-pytest-slow-only:
+	PATH=./third-parties/wapiti:$$PATH \
+		TF_USE_LEGACY_KERAS=1 \
+		$(PYTHON) -m pytest -v -p no:cacheprovider \
+		$(SLOW_PYTEST_ARGS) \
+		-p no:cacheprovider -p no:warnings -vv --maxfail=1 $(ARGS)
 
 
 dev-watch:
@@ -112,6 +127,7 @@ dev-watch:
 
 dev-watch-slow:
 	PATH=./third-parties/wapiti:$$PATH \
+		TF_USE_LEGACY_KERAS=1 \
 		$(PYTHON) -m pytest_watcher \
 		--runner=$(VENV)/bin/python \
 		. \

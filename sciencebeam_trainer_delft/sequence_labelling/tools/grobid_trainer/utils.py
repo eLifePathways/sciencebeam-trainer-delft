@@ -286,7 +286,8 @@ def process_resume_train_model_params(
 # train a GROBID model with all available data
 def train(
     model_name: str,
-    embeddings_name, architecture='BidLSTM_CRF', use_ELMo=False,
+    embeddings_name: Optional[str],
+    architecture='BidLSTM_CRF',
     input_paths: Optional[List[str]] = None,
     output_path: Optional[str] = None,
     limit: Optional[int] = None,
@@ -303,7 +304,7 @@ def train(
 ):
 
     model_name = get_model_name(
-        model_name, output_path=output_path, use_ELMo=use_ELMo
+        model_name, output_path=output_path
     )
 
     model = Sequence(
@@ -313,7 +314,6 @@ def train(
         embedding_manager=embedding_manager,
         max_sequence_length=max_sequence_length,
         architecture=architecture,
-        use_ELMo=use_ELMo,
         **kwargs
     )
     process_resume_train_model_params(
@@ -531,7 +531,6 @@ def train_eval(
     model_name: str,
     embeddings_name,
     architecture='BidLSTM_CRF',
-    use_ELMo=False,
     input_paths: Optional[List[str]] = None,
     output_path: Optional[str] = None,
     limit: Optional[int] = None,
@@ -553,7 +552,8 @@ def train_eval(
 ):
 
     model_name = get_model_name(
-        model_name, output_path=output_path, use_ELMo=use_ELMo
+        model_name,
+        output_path=output_path
     )
 
     model = Sequence(
@@ -563,7 +563,6 @@ def train_eval(
         embedding_manager=embedding_manager,
         max_sequence_length=max_sequence_length,
         architecture=architecture,
-        use_ELMo=use_ELMo,
         batch_size=batch_size,
         fold_number=fold_count,
         **kwargs
@@ -679,7 +678,6 @@ def do_eval_model(
 
 def get_model_name(
     model_name: str,
-    use_ELMo: bool = False,
     output_path: Optional[str] = None,
     model_path: Optional[str] = None
 ):
@@ -687,15 +685,11 @@ def get_model_name(
         pass
     else:
         model_name = 'grobid-' + model_name
-
-    if use_ELMo:
-        model_name += '-with_ELMo'
     return model_name
 
 
 def load_delft_model(
     model_name: str,
-    use_ELMo: bool = False,
     output_path: Optional[str] = None,
     model_path: Optional[str] = None,
     max_sequence_length: Optional[int] = 100,
@@ -707,7 +701,6 @@ def load_delft_model(
     model = Sequence(
         get_model_name(
             model_name,
-            use_ELMo=use_ELMo,
             output_path=output_path,
             model_path=model_path
         ),
@@ -726,7 +719,6 @@ def load_delft_model(
 
 def eval_model(
     model_name: str,
-    use_ELMo: bool = False,
     input_paths: Optional[List[str]] = None,
     output_path: Optional[str] = None,
     model_path: Optional[str] = None,
@@ -745,7 +737,6 @@ def eval_model(
 
     model = load_delft_model(
         model_name=model_name,
-        use_ELMo=use_ELMo,
         output_path=output_path,
         model_path=model_path,
         max_sequence_length=max_sequence_length,
@@ -866,7 +857,6 @@ def tag_input(
     model_name: str,
     tag_output_format: str = DEFAULT_TAG_OUTPUT_FORMAT,
     tag_output_path: Optional[str] = None,
-    use_ELMo: bool = False,
     input_paths: Optional[List[str]] = None,
     output_path: Optional[str] = None,
     model_path: Optional[str] = None,
@@ -885,7 +875,6 @@ def tag_input(
 
     model = load_delft_model(
         model_name=model_name,
-        use_ELMo=use_ELMo,
         output_path=output_path,
         model_path=model_path,
         max_sequence_length=max_sequence_length,

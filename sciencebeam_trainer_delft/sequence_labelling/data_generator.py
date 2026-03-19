@@ -4,12 +4,11 @@ from typing import Iterable, List, Optional, Tuple, Union
 from typing_extensions import Protocol
 
 import numpy as np
-import keras
+import tf_keras as keras
 
 from delft.utilities.Embeddings import Embeddings
 from delft.sequenceLabelling.preprocess import (
     to_vector_single, to_casing_single,
-    to_vector_simple_with_elmo,
     # to_vector_simple_with_bert,
     Preprocessor,
     PAD
@@ -531,10 +530,7 @@ class DataGenerator(keras.utils.Sequence):
         if not self.use_word_embeddings:
             return to_dummy_batch_embedding_vector(batch_tokens, max_length)
         assert self.embeddings is not None
-        if self.embeddings.use_ELMo:
-            return to_vector_simple_with_elmo(batch_tokens, self.embeddings, max_length)
-        else:
-            return to_batch_embedding_vector(batch_tokens, self.embeddings, max_length)
+        return to_batch_embedding_vector(batch_tokens, self.embeddings, max_length)
 
     def to_concatenated_batch_vector_from_batch_text_list(
         self,
@@ -588,8 +584,6 @@ class DataGenerator(keras.utils.Sequence):
             max_length_x += 1
             extend = True
 
-        batch_y = None
-
         sub_f = None
         if (
                 self.preprocessor.return_features
@@ -628,28 +622,42 @@ class DataGenerator(keras.utils.Sequence):
         if self.preprocessor.return_casing:
             batch_a = to_batch_casing(x_tokenized, max_length_x)
 
-        batch_y = None
+        batch_y_ndarray: Optional[np.ndarray] = None
         # store tag embeddings
         if self.y is not None:
-            batch_y = take_with_offset(self.y, window_indices_and_offsets)
-            max_length_y = max((len(y_row) for y_row in batch_y))
+            batch_y_list = take_with_offset(self.y, window_indices_and_offsets)
+            max_length_y = max((len(y_row) for y_row in batch_y_list))
             if self.max_sequence_length and max_length_y > self.max_sequence_length:
                 max_length_y = self.max_sequence_length
                 # truncation of sequence at max_sequence_length
-                batch_y = truncate_batch_values(batch_y, self.max_sequence_length)
+                batch_y_list = truncate_batch_values(batch_y_list, self.max_sequence_length)
 
-            batches, batch_y = self.preprocessor.transform(
+            batches, batch_y_list = self.preprocessor.transform(
                 padded_batch_text_list,
-                batch_y,
+                batch_y_list,
                 extend=extend,
                 label_indices=not self.use_chain_crf
             )
+            truncated_batch_y = truncate_batch_values(batch_y_list, max_length_x)
+            try:
+                batch_y_ndarray = np.asarray(truncated_batch_y, dtype=np.int32)
+            except ValueError:
+                max_length_y = max(len(y_row) for y_row in truncated_batch_y)
+                batch_y_ndarray = np.zeros(
+                    (len(truncated_batch_y), max_length_y), dtype=np.int32
+                )
+                for i, y_row in enumerate(truncated_batch_y):
+                    batch_y_ndarray[i, :len(y_row)] = y_row
         else:
             batches = self.preprocessor.transform(
                 padded_batch_text_list, extend=extend
             )
 
-        batch_c = np.asarray(batches[0])
+        batch_c = left_pad_batch_values(
+            np.asarray(batches[0], dtype=object),
+            max_length_x,
+            dtype=np.int32
+        )
 
         batch_l = batches[1]
 
@@ -678,7 +686,7 @@ class DataGenerator(keras.utils.Sequence):
                 batch_features.shape,
                 batch_features.dtype
             )
-            if batch_features.dtype == np.object0:
+            if batch_features.dtype == np.object_:
                 LOGGER.warning(
                     'invalid object type of batch_features sample data[0]: %s',
                     batch_features[0][0:min(2, len(batch_features[0]))]
@@ -694,11 +702,11 @@ class DataGenerator(keras.utils.Sequence):
             LOGGER.debug('inputs shapes: %s', [x.shape for x in input_nparrays])
             LOGGER.debug('inputs dtype: %s', [x.dtype for x in input_nparrays])
             for index, input_array in enumerate(input_nparrays):
-                if input_array.dtype == np.object0:
+                if input_array.dtype == np.object_:
                     LOGGER.warning(
                         'invalid object type inputs[%d] sample data[0]: %s',
                         index,
                         input_array[0][0:min(2, len(input_array[0]))]
                     )
 
-        return inputs, batch_y
+        return inputs, batch_y_ndarray

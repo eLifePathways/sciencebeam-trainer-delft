@@ -2,7 +2,7 @@ import argparse
 import logging
 from typing import Dict, List, Optional, NamedTuple
 
-import keras
+import tf_keras as keras
 import numpy as np
 
 from delft.sequenceLabelling.preprocess import Preprocessor

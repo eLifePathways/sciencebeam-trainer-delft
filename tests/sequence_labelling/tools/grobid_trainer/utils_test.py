@@ -731,3 +731,11 @@ class TestGrobidTrainerUtils:
                 fold_count=2,
                 **default_args
             )
+
+        def test_should_be_able_to_train_eval_with_eval_input_window_stride(
+                self, default_args: dict):
+            train_eval(
+                eval_max_sequence_length=5,
+                eval_input_window_stride=3,
+                **default_args
+            )

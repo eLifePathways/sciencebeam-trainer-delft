@@ -7,10 +7,10 @@ from abc import abstractmethod
 from typing import List, Optional, Sequence
 
 import sciencebeam_trainer_delft.utils.no_warn_if_disabled  # noqa, pylint: disable=unused-import
-import sciencebeam_trainer_delft.utils.no_keras_backend_message  # noqa, pylint: disable=unused-import
+import sciencebeam_trainer_delft.utils.configure_keras  # noqa, pylint: disable=unused-import
 # pylint: disable=wrong-import-order, ungrouped-imports
 
-import keras.backend as K
+import tf_keras.backend as K  # type: ignore[import-untyped]
 
 from sciencebeam_trainer_delft.utils.download_manager import DownloadManager
 from sciencebeam_trainer_delft.utils.cloud_support import patch_cloud_support
@@ -162,7 +162,6 @@ class GrobidTrainerSubCommand(SubCommand):
     def get_train_args(self, args: argparse.Namespace) -> dict:
         return dict(
             architecture=args.architecture,
-            use_ELMo=args.use_ELMo,
             output_path=args.output,
             log_dir=args.checkpoint,
             char_emb_size=args.char_embedding_size,

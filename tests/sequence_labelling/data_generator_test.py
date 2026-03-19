@@ -137,7 +137,10 @@ def preprocess_transform(
 
 
 def preprocess_transform_features(features_batch):
-    return np.asarray([get_transformed_features(features) for features in features_batch])
+    return np.asarray(
+        [get_transformed_features(features) for features in features_batch],
+        dtype=object
+    )
 
 
 def get_lengths(a):
@@ -159,25 +162,26 @@ def _preprocessor():
 def _embeddings():
     embeddings = MagicMock(name='embeddings')
     embeddings.get_word_vector.side_effect = get_word_vector
-    embeddings.use_ELMo = False
     embeddings.embed_size = len(get_word_vector(WORD_1))
     return embeddings
 
 
-def all_close(a, b):
+def all_close(a, b, dtype=np.float32):
     LOGGER.debug('a: %s', a)
     LOGGER.debug('b: %s', b)
-    return np.allclose(a, b)
+    a_array = np.asarray(a, dtype=dtype)
+    b_array = np.asarray(b, dtype=dtype)
+    return np.allclose(a_array, b_array)
 
 
 class TestLeftPadBatchValues:
     def test_should_left_pad_values(self):
-        all_close(
+        assert all_close(
             left_pad_batch_values(
                 np.asarray([
                     [[1, 1], [2, 2]],
                     [[1, 1]]
-                ]),
+                ], dtype=object),
                 2,
                 dtype='float32'
             ), np.asarray([
@@ -187,12 +191,12 @@ class TestLeftPadBatchValues:
         )
 
     def test_should_truncate_values(self):
-        all_close(
+        assert all_close(
             left_pad_batch_values(
                 np.asarray([
                     [[1, 1], [2, 2], [3, 3]],
                     [[1, 1]]
-                ]),
+                ], dtype=object),
                 2,
                 dtype='float32'
             ), np.asarray([
@@ -202,13 +206,13 @@ class TestLeftPadBatchValues:
         )
 
     def test_should_left_pad_zero_length_values(self):
-        all_close(
+        assert all_close(
             left_pad_batch_values(
                 np.asarray([
                     [],
                     [[1, 1], [2, 2]],
                     [[1, 1]]
-                ]),
+                ], dtype=object),
                 2,
                 dtype='float32'
             ), np.asarray([
@@ -675,15 +679,15 @@ class TestDataGenerator:
             np.asarray([
                 LONG_SENTENCE_TOKENS,
                 SHORT_SENTENCE_TOKENS
-            ]),
+            ], dtype=object),
             np.asarray([
                 [LABEL_1] * len(LONG_SENTENCE_TOKENS),
                 [LABEL_2] * len(SHORT_SENTENCE_TOKENS)
-            ]),
+            ], dtype=object),
             features=np.asarray([
                 np.asarray([WORD_FEATURES_1] * len(LONG_SENTENCE_TOKENS)),
                 np.asarray([WORD_FEATURES_2] * len(SHORT_SENTENCE_TOKENS))
-            ]),
+            ], dtype=object),
             preprocessor=preprocessor,
             embeddings=embeddings,
             **{
@@ -709,15 +713,15 @@ class TestDataGenerator:
             np.asarray([
                 ' '.join(LONG_SENTENCE_TOKENS),
                 ' '.join(SHORT_SENTENCE_TOKENS)
-            ]),
+            ], dtype=object),
             np.asarray([
                 [LABEL_1] * len(LONG_SENTENCE_TOKENS),
                 [LABEL_2] * len(SHORT_SENTENCE_TOKENS)
-            ]),
+            ], dtype=object),
             features=np.asarray([
                 np.asarray([WORD_FEATURES_1] * len(LONG_SENTENCE_TOKENS)),
                 np.asarray([WORD_FEATURES_2] * len(SHORT_SENTENCE_TOKENS))
-            ]),
+            ], dtype=object),
             preprocessor=preprocessor,
             embeddings=embeddings,
             max_sequence_length=len(SHORT_SENTENCE_TOKENS),
@@ -746,15 +750,15 @@ class TestDataGenerator:
             np.asarray([
                 LONG_SENTENCE_TOKENS,
                 SHORT_SENTENCE_TOKENS
-            ]),
+            ], dtype=object),
             np.asarray([
                 [LABEL_1] * len(LONG_SENTENCE_TOKENS),
                 [LABEL_2] * len(SHORT_SENTENCE_TOKENS)
-            ]),
+            ], dtype=object),
             features=np.asarray([
                 np.asarray([WORD_FEATURES_1] * len(LONG_SENTENCE_TOKENS)),
                 np.asarray([WORD_FEATURES_2] * len(SHORT_SENTENCE_TOKENS))
-            ]),
+            ], dtype=object),
             preprocessor=preprocessor,
             embeddings=embeddings,
             max_sequence_length=len(SHORT_SENTENCE_TOKENS),

@@ -3,18 +3,18 @@ name = "sciencebeam-trainer-delft"
 version = "0.0.0"
 description = "ScienceBeam Trainer DeLFT"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "jsonpickle>=1.4.1",
 ]
 
 [project.optional-dependencies]
 tf = [
-    "tensorflow==2.9.3",
+    "tensorflow>=2.17.1",
+    "wrapt>=1.14.0",
 ]
 delft = [
-    "blingfire==0.1.8",
-    "delft==0.3.4",
+    "delft>=0.4.3",
 ]
 
 [dependency-groups]

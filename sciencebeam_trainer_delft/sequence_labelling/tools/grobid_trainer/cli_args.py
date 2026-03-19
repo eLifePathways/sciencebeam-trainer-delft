@@ -286,7 +286,6 @@ def add_train_arguments(parser: argparse.ArgumentParser):
         choices=get_model_names(),
         help="type of model architecture to be used"
     )
-    parser.add_argument("--use-ELMo", action="store_true", help="Use ELMo contextual embeddings")
 
     parser.add_argument(
         "--max-char-length",
