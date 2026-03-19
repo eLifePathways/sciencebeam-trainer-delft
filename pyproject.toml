@@ -27,6 +27,11 @@ dev = [
     "types-pyyaml>=6.0.12.20250915",
     "types-requests>=2.27.5",
 ]
+[tool.setuptools.package-data]
+sciencebeam_trainer_delft = ["py.typed"]
+
+[tool.setuptools]
+include-package-data = true
 
 [tool.setuptools.packages.find]
 include = ["sciencebeam_trainer_delft*"]
