@@ -190,8 +190,8 @@ wheels = [
 
 [[package]]
 name = "delft"
-version = "0.3.5"
-source = { git = "https://github.com/kermitt2/delft?branch=bugfix%2Ffix-hardcoded-resource-file#a9918d72b47f480544506861197be1706aebf847" }
+version = "0.4.3"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "accelerate" },
     { name = "blingfire2" },
@@ -213,6 +213,10 @@ dependencies = [
     { name = "transformers" },
     { name = "truecase" },
     { name = "unidecode" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/65/eb/1fa03d5c6ce9d2af62ffee5db0252044111210e3244df59fead10c628eb1/delft-0.4.3.tar.gz", hash = "sha256:f6d7c0b83c8f74ac55e84ab8a51e9ba8219509bdc1137fcc3b1840b605f1d639", size = 119479, upload-time = "2026-03-19T13:34:49.125Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e3/00/20605986de94935546ff0c900f6500565c58c7ee32b559ce75d75a419636/delft-0.4.3-py3-none-any.whl", hash = "sha256:925c129e6495386188f74b70c712a6d703626f5b65faeabfd5fe772ba5c4840d", size = 145101, upload-time = "2026-03-19T13:34:47.507Z" },
 ]
 
 [[package]]
@@ -1659,7 +1663,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "delft", marker = "extra == 'delft'", git = "https://github.com/kermitt2/delft?branch=bugfix%2Ffix-hardcoded-resource-file" },
+    { name = "delft", marker = "extra == 'delft'", specifier = ">=0.4.3" },
     { name = "jsonpickle", specifier = ">=1.4.1" },
     { name = "tensorflow", marker = "extra == 'tf'", specifier = ">=2.17.1" },
     { name = "wrapt", marker = "extra == 'tf'", specifier = ">=1.14.0" },

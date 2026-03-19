@@ -14,11 +14,8 @@ tf = [
     "wrapt>=1.14.0",
 ]
 delft = [
-    "delft>=0.4.0",
+    "delft>=0.4.3",
 ]
-
-[tool.uv.sources]
-delft = { git = "https://github.com/kermitt2/delft", branch = "bugfix/fix-hardcoded-resource-file" }
 
 [dependency-groups]
 dev = [
