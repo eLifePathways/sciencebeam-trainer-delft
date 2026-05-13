@@ -323,6 +323,7 @@ python -m sciencebeam_trainer_delft.sequence_labelling.grobid_trainer \
     --model-path="data/models/sequenceLabelling/grobid-segmentation" \
     --limit="2" \
     --tag-output-format="data_unidiff" \
+    --tag-label-format="iob" \
     --tag-output-path="/tmp/test.diff"
 ```
 
@@ -593,6 +594,7 @@ python -m sciencebeam_trainer_delft.sequence_labelling.grobid_trainer \
     --model-path="https://github.com/kermitt2/grobid/raw/0.5.6/grobid-home/models/header/" \
     --limit="1" \
     --tag-output-format="data" \
+    --tag-label-format="iob" \
     --quiet \
     | head -5
 ```
@@ -617,6 +619,7 @@ python -m sciencebeam_trainer_delft.sequence_labelling.grobid_trainer \
     --model-path="https://github.com/kermitt2/grobid/raw/0.5.6/grobid-home/models/header/" \
     --limit="2" \
     --tag-output-format="data_unidiff" \
+    --tag-label-format="iob" \
     --tag-output-path="/tmp/test.diff"
 ```
 

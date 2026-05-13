@@ -48,6 +48,7 @@ from sciencebeam_trainer_delft.sequence_labelling.engines.wapiti_adapters import
 
 from sciencebeam_trainer_delft.sequence_labelling.tag_formatter import (
     TagOutputFormats,
+    TagLabelFormats,
     get_tag_result,
     iter_format_tag_result
 )
@@ -792,6 +793,7 @@ def wapiti_eval_model(
 def do_tag_input(
     model: Union[Sequence, WapitiModelAdapter],
     tag_output_format: str = DEFAULT_TAG_OUTPUT_FORMAT,
+    tag_label_format: str = TagLabelFormats.GROBID,
     tag_output_path: Optional[str] = None,
     input_paths: Optional[List[str]] = None,
     limit: Optional[int] = None,
@@ -836,7 +838,8 @@ def do_tag_input(
         expected_tag_result=expected_tag_result,
         texts=expected_x_all,
         features=expected_features_all,
-        model_name=model._get_model_name()  # pylint: disable=protected-access
+        model_name=model._get_model_name(),  # pylint: disable=protected-access
+        label_format=tag_label_format
     )
     if tag_output_path:
         LOGGER.info('writing tag results to: %r', tag_output_path)
@@ -856,6 +859,7 @@ def do_tag_input(
 def tag_input(
     model_name: str,
     tag_output_format: str = DEFAULT_TAG_OUTPUT_FORMAT,
+    tag_label_format: str = TagLabelFormats.GROBID,
     tag_output_path: Optional[str] = None,
     input_paths: Optional[List[str]] = None,
     output_path: Optional[str] = None,
@@ -889,6 +893,7 @@ def tag_input(
     do_tag_input(
         model,
         tag_output_format=tag_output_format,
+        tag_label_format=tag_label_format,
         tag_output_path=tag_output_path,
         input_paths=input_paths,
         limit=limit,
@@ -902,6 +907,7 @@ def wapiti_tag_input(
     model_path: str,
     download_manager: DownloadManager,
     tag_output_format: str = DEFAULT_TAG_OUTPUT_FORMAT,
+    tag_label_format: str = TagLabelFormats.GROBID,
     tag_output_path: Optional[str] = None,
     input_paths: Optional[List[str]] = None,
     limit: Optional[int] = None,
@@ -917,6 +923,7 @@ def wapiti_tag_input(
     do_tag_input(
         model=model,
         tag_output_format=tag_output_format,
+        tag_label_format=tag_label_format,
         tag_output_path=tag_output_path,
         input_paths=input_paths,
         limit=limit,

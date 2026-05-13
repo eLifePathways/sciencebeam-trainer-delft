@@ -58,6 +58,7 @@ from sciencebeam_trainer_delft.sequence_labelling.tools.grobid_trainer.cli_args 
     add_stateful_argument,
     add_input_window_stride_argument,
     add_tag_output_format_argument,
+    add_tag_label_format_argument,
     add_tag_output_path_argument,
     add_tag_transformed_argument,
     add_model_positional_argument,
@@ -395,6 +396,7 @@ class TagSubCommand(GrobidTrainerSubCommand):
         add_input_window_stride_argument(parser)
         add_model_path_argument(parser, required=True, help='directory to load the model from')
         add_tag_output_format_argument(parser)
+        add_tag_label_format_argument(parser)
         add_tag_output_path_argument(parser)
         add_tag_transformed_argument(parser)
 
@@ -402,6 +404,7 @@ class TagSubCommand(GrobidTrainerSubCommand):
         tag_input(
             model_path=args.model_path,
             tag_output_format=args.tag_output_format,
+            tag_label_format=args.tag_label_format,
             tag_output_path=args.tag_output_path,
             tag_transformed=args.tag_transformed,
             stateful=args.stateful,
@@ -415,6 +418,7 @@ class WapitiTagSubCommand(GrobidTrainerSubCommand):
         add_common_arguments(parser, max_sequence_length_default=None)
         add_model_path_argument(parser, required=True, help='directory to load the model from')
         add_tag_output_format_argument(parser)
+        add_tag_label_format_argument(parser)
         add_tag_output_path_argument(parser)
         add_wapiti_install_arguments(parser)
 
@@ -422,6 +426,7 @@ class WapitiTagSubCommand(GrobidTrainerSubCommand):
         wapiti_tag_input(
             model_path=args.model_path,
             tag_output_format=args.tag_output_format,
+            tag_label_format=args.tag_label_format,
             tag_output_path=args.tag_output_path,
             input_paths=args.input,
             limit=args.limit,

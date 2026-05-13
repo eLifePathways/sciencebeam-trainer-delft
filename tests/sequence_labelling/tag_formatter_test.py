@@ -7,8 +7,10 @@ import numpy as np
 
 from sciencebeam_trainer_delft.sequence_labelling.tag_formatter import (
     TagOutputFormats,
+    TagLabelFormats,
     get_tag_result,
     get_xml_tag_for_annotation_label,
+    translate_tag_label_iob_to_grobid,
     format_tag_result as _format_tag_result
 )
 
@@ -75,6 +77,20 @@ class TestGetXmlTagForAnnotationLabel:
         assert get_xml_tag_for_annotation_label('B-<tag>') == 'tag'
 
 
+class TestTranslateTagLabelIobToGrobid:
+    def test_should_convert_begin_tag(self):
+        assert translate_tag_label_iob_to_grobid('B-header') == 'I-header'
+
+    def test_should_convert_inside_tag(self):
+        assert translate_tag_label_iob_to_grobid('I-header') == 'header'
+
+    def test_should_convert_outside_tag(self):
+        assert translate_tag_label_iob_to_grobid('O') == '<other>'
+
+    def test_should_pass_through_unknown_tag(self):
+        assert translate_tag_label_iob_to_grobid('<other>') == '<other>'
+
+
 class TestFormatTagResult:
     def test_should_handle_numpy_arrays_in_text(self):
         tag_result = {
@@ -117,6 +133,43 @@ class TestFormatTagResult:
             model_name=MODEL_1
         )
         assert result.splitlines() == DATA_LINES_1 + [''] + DATA_LINES_1
+
+    def test_should_format_tag_list_result_as_data_with_grobid_label_format(self):
+        result = format_tag_result(
+            tag_result=to_iterable(
+                [[('token1', 'B-header'), ('token2', 'I-header'), ('token3', 'O')]]
+            ),
+            output_format=TagOutputFormats.DATA,
+            features=np.array([[['f1'], ['f2'], ['f3']]]),
+            label_format=TagLabelFormats.GROBID
+        )
+        assert result.splitlines() == [
+            'token1 f1 I-header',
+            'token2 f2 header',
+            'token3 f3 <other>'
+        ]
+
+    def test_should_format_tag_list_result_as_data_unidiff_with_grobid_label_format(self):
+        result = format_tag_result(
+            tag_result=to_iterable(
+                [[('token1', 'B-tag1'), ('token2', 'I-tag1'), ('token3', 'B-tag2')]]
+            ),
+            expected_tag_result=[
+                [('token1', 'B-tag1'), ('token2', 'I-tag1'), ('token3', 'B-tag3')]
+            ],
+            features=np.array([[['f1'], ['f2'], ['f3']]]),
+            output_format=TagOutputFormats.DATA_UNIDIFF,
+            label_format=TagLabelFormats.GROBID
+        )
+        assert result.splitlines() == [
+            '--- document_000001.expected',
+            '+++ document_000001.actual',
+            '@@ -1,3 +1,3 @@',
+            ' token1 f1 I-tag1',
+            ' token2 f2 tag1',
+            '-token3 f3 I-tag3',
+            '+token3 f3 I-tag2'
+        ]
 
     def test_should_format_tag_list_result_as_data_unidiff_and_combined_tags(self):
         result = format_tag_result(

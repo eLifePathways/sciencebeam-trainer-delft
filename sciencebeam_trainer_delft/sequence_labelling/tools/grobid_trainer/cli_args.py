@@ -29,7 +29,9 @@ from sciencebeam_trainer_delft.sequence_labelling.engines.wapiti import (
 
 from sciencebeam_trainer_delft.sequence_labelling.tag_formatter import (
     TagOutputFormats,
-    TAG_OUTPUT_FORMATS
+    TAG_OUTPUT_FORMATS,
+    TagLabelFormats,
+    TAG_LABEL_FORMATS
 )
 
 from sciencebeam_trainer_delft.sequence_labelling.evaluation import (
@@ -217,6 +219,16 @@ def add_tag_output_format_argument(parser: argparse.ArgumentParser, **kwargs):
         default=DEFAULT_TAG_OUTPUT_FORMAT,
         choices=TAG_OUTPUT_FORMATS,
         help="output format for tag results",
+        **kwargs
+    )
+
+
+def add_tag_label_format_argument(parser: argparse.ArgumentParser, **kwargs):
+    parser.add_argument(
+        "--tag-label-format",
+        default=TagLabelFormats.GROBID,
+        choices=TAG_LABEL_FORMATS,
+        help="label format for tag results",
         **kwargs
     )
 

@@ -36,6 +36,17 @@ TAG_OUTPUT_FORMATS = [
     TagOutputFormats.XML_DIFF,
 ]
 
+
+class TagLabelFormats:
+    IOB = 'iob'
+    GROBID = 'grobid'
+
+
+TAG_LABEL_FORMATS = [
+    TagLabelFormats.IOB,
+    TagLabelFormats.GROBID,
+]
+
 T_Token_Label_Tuple = Tuple[str, str]
 T_Document_Token_Label_Tuple_List = Sequence[T_Token_Label_Tuple]
 T_Batch_Token_Label_Tuple_List = Sequence[T_Document_Token_Label_Tuple_List]
@@ -46,6 +57,22 @@ class CustomJsonEncoder(json.JSONEncoder):
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         return json.JSONEncoder.default(self, obj)
+
+
+def translate_tag_label_iob_to_grobid(tag: str) -> str:
+    if tag == 'O':
+        return '<other>'
+    if tag.startswith('B-'):
+        return 'I-' + tag[2:]
+    if tag.startswith('I-'):
+        return tag[2:]
+    return tag
+
+
+def translate_tag_label(tag: str, label_format: str) -> str:
+    if label_format == TagLabelFormats.GROBID:
+        return translate_tag_label_iob_to_grobid(tag)
+    return tag
 
 
 def get_tag_result(
@@ -79,7 +106,8 @@ def format_list_tag_result_as_json(
 
 def iter_to_data_lines(
     features: np.ndarray,
-    annotations: Iterable[List[Tuple[str, str]]]
+    annotations: Iterable[List[Tuple[str, str]]],
+    label_format: str = TagLabelFormats.IOB
 ) -> Iterable[str]:
     for document_lindex, (line_annotations, line_features) in enumerate(
         zip(annotations, features.tolist())
@@ -87,8 +115,12 @@ def iter_to_data_lines(
         if document_lindex > 0:
             yield ''  # blank line separator
         yield from (
-            ' '.join([token_annoation[0]] + list(token_features) + [token_annoation[1]])
-            for token_annoation, token_features in zip(line_annotations, line_features)
+            ' '.join(
+                [token_annotation[0]]
+                + list(token_features)
+                + [translate_tag_label(token_annotation[1], label_format)]
+            )
+            for token_annotation, token_features in zip(line_annotations, line_features)
         )
 
 
@@ -100,12 +132,14 @@ def iter_format_list_tag_result_as_data(
     tag_result: Iterable[List[Tuple[str, str]]],
     texts: Optional[np.ndarray] = None,  # pylint: disable=unused-argument
     features: Optional[np.ndarray] = None,
-    model_name: Optional[str] = None  # pylint: disable=unused-argument
+    model_name: Optional[str] = None,  # pylint: disable=unused-argument
+    label_format: str = TagLabelFormats.IOB
 ) -> Iterable[str]:
     assert features is not None
     data_text_iterable = iter_to_data_lines(
         features=features,
-        annotations=tag_result
+        annotations=tag_result,
+        label_format=label_format
     )
     for line_index, data_text in enumerate(data_text_iterable):
         if line_index > 0:
@@ -161,15 +195,18 @@ def iter_format_document_tag_result_as_data_unidiff(
     document_tag_result: List[Tuple[str, str]],
     document_expected_tag_result: T_Document_Token_Label_Tuple_List,
     document_features: List[List[str]],
-    document_name: str
+    document_name: str,
+    label_format: str = TagLabelFormats.IOB
 ) -> Iterable[str]:
     actual_data = format_list_tag_result_as_data(
         [document_tag_result],
-        features=np.expand_dims(document_features, axis=0)
+        features=np.expand_dims(document_features, axis=0),
+        label_format=label_format
     )
     expected_data = format_list_tag_result_as_data(
         [document_expected_tag_result],
-        features=np.expand_dims(document_features, axis=0)
+        features=np.expand_dims(document_features, axis=0),
+        label_format=label_format
     )
     LOGGER.debug('actual_data: %r', actual_data)
     LOGGER.debug('expected_data: %r', expected_data)
@@ -185,14 +222,16 @@ def iter_format_document_list_tag_result_as_data_unidiff(
     tag_result: Iterable[List[Tuple[str, str]]],
     expected_tag_result: T_Batch_Token_Label_Tuple_List,
     features: T_Batch_Features_Array,
-    document_name_prefix: str
+    document_name_prefix: str,
+    label_format: str = TagLabelFormats.IOB
 ) -> Iterable[str]:
     for document_index, document_tag_result in enumerate(tag_result):
         yield from iter_format_document_tag_result_as_data_unidiff(
             document_tag_result=document_tag_result,
             document_expected_tag_result=expected_tag_result[document_index],
             document_features=features[document_index],
-            document_name='%s%06d' % (document_name_prefix, 1 + document_index)
+            document_name='%s%06d' % (document_name_prefix, 1 + document_index),
+            label_format=label_format
         )
 
 
@@ -201,7 +240,8 @@ def iter_format_list_tag_result_as_data_unidiff(
     expected_tag_result: T_Batch_Token_Label_Tuple_List,
     texts: Optional[np.ndarray] = None,  # pylint: disable=unused-argument
     features: Optional[T_Batch_Features_Array] = None,
-    model_name: Optional[str] = None
+    model_name: Optional[str] = None,
+    label_format: str = TagLabelFormats.IOB
 ) -> Iterable[str]:
     assert expected_tag_result
     assert features is not None
@@ -212,7 +252,8 @@ def iter_format_list_tag_result_as_data_unidiff(
         tag_result=tag_result,
         expected_tag_result=expected_tag_result,
         features=features,
-        document_name_prefix=document_name_prefix
+        document_name_prefix=document_name_prefix,
+        label_format=label_format
     )
 
 
@@ -328,18 +369,22 @@ def iter_format_list_tag_result(
         *args,
         output_format: str,
         expected_tag_result: Optional[T_Batch_Token_Label_Tuple_List] = None,
+        label_format: str = TagLabelFormats.IOB,
         **kwargs) -> Iterable[str]:
     if output_format == TagOutputFormats.JSON:
         yield format_list_tag_result_as_json(*args, **kwargs)
         return
     if output_format == TagOutputFormats.DATA:
-        yield from iter_format_list_tag_result_as_data(*args, **kwargs)
+        yield from iter_format_list_tag_result_as_data(  # type: ignore[misc]
+            *args, label_format=label_format, **kwargs
+        )
         return
     if output_format == TagOutputFormats.DATA_UNIDIFF:
         assert expected_tag_result
         yield from iter_format_list_tag_result_as_data_unidiff(  # type: ignore
             *args,
             expected_tag_result=expected_tag_result,
+            label_format=label_format,
             **kwargs
         )
         return
@@ -366,7 +411,8 @@ def iter_format_tag_result(
     expected_tag_result: Optional[T_Batch_Token_Label_Tuple_List] = None,
     texts: Optional[np.ndarray] = None,
     features: Optional[np.ndarray] = None,
-    model_name: Optional[str] = None
+    model_name: Optional[str] = None,
+    label_format: str = TagLabelFormats.IOB
 ) -> Iterable[str]:
     if isinstance(tag_result, dict):
         assert output_format == TagOutputFormats.JSON
@@ -378,7 +424,8 @@ def iter_format_tag_result(
         expected_tag_result=expected_tag_result,
         texts=texts,
         features=features,
-        model_name=model_name
+        model_name=model_name,
+        label_format=label_format
     )
 
 
