@@ -9,11 +9,11 @@ from sciencebeam_trainer_delft.utils.io import (
 )
 
 
-
 @pytest.fixture(name='copy_file_mock', autouse=True)
 def _copy_file_mock():
     with patch.object(io_module, 'copy_file') as mock:
         yield mock
+
 
 class TestIsExternalLocation:
     def test_should_return_false_for_name(self):
