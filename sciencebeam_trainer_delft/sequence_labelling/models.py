@@ -9,9 +9,11 @@ from tf_keras.layers import (
     TimeDistributed
 )
 
+import tf_keras.backend as K
+
 import delft.sequenceLabelling.wrapper
 from delft.utilities.crf_wrapper_default import CRFModelWrapperDefault
-from delft.utilities.crf_layer import ChainCRF
+from delft.utilities.crf_layer import ChainCRF, chain_crf_loss
 from delft.sequenceLabelling.models import BaseModel
 from delft.sequenceLabelling.models import get_model as _get_model, BidLSTM_CRF_FEATURES
 
@@ -160,6 +162,26 @@ class CustomBidLSTM_CRF(CustomModel):
         model_inputs.append(length_input)
 
         self.model = Model(inputs=model_inputs, outputs=[pred])
+
+        if config.masked_crf_loss:
+            # Override ChainCRF loss to mask PAD positions (label index 0).
+            # Without masking, PAD tokens (~37% of padded sequences) produce a large
+            # spurious gradient that can overwhelm the learning signal for rare classes.
+            # The mask is derived from y_true: PAD positions have one-hot label 0,
+            # real positions have labels 1..ntags-1.
+            crf_layer = self.crf
+
+            def _masked_chain_crf_loss(y_true, y_pred):
+                y_sparse = K.argmax(y_true, axis=-1)
+                mask = K.cast(K.not_equal(y_sparse, 0), K.floatx())
+                return chain_crf_loss(
+                    y_true, y_pred,
+                    crf_layer.U, crf_layer.b_start, crf_layer.b_end,
+                    mask
+                )
+
+            self.crf.loss = _masked_chain_crf_loss
+
         self.config = config
 
 

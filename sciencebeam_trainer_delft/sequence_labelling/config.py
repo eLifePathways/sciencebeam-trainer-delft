@@ -33,6 +33,7 @@ class ModelConfig(_ModelConfig):
         char_input_dropout: float = DEFAULT_CHAR_INPUT_DROPOUT,
         char_lstm_dropout: float = DEFAULT_CHAR_LSTM_DROPOUT,
         stateful: bool = False,
+        masked_crf_loss: bool = False,
         model_version: int = MODEL_VERSION,
         # deprecated
         feature_indices: Optional[List[int]] = None,
@@ -57,6 +58,7 @@ class ModelConfig(_ModelConfig):
         self.char_input_dropout = char_input_dropout
         self.char_lstm_dropout = char_lstm_dropout
         self.stateful = stateful
+        self.masked_crf_loss = masked_crf_loss
         self.model_version = model_version
         for key, val in kwargs.items():
             setattr(self, key, val)
