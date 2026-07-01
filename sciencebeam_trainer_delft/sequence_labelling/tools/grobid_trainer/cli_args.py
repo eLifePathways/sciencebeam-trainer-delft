@@ -433,6 +433,11 @@ def add_train_arguments(parser: argparse.ArgumentParser):
         help="enables masking of zero for the char input"
     )
     parser.add_argument(
+        "--masked-crf-loss", action='store_true',
+        dest="masked_crf_loss",
+        help="mask PAD positions from the CRF loss (excludes padding from gradient)"
+    )
+    parser.add_argument(
         "--char-input-dropout", type=float, default=DEFAULT_CHAR_INPUT_DROPOUT,
         help="dropout for char input"
     )

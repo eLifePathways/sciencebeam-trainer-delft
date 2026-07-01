@@ -188,7 +188,8 @@ class GrobidTrainerSubCommand(SubCommand):
                 use_features_indices_input=args.use_features_indices_input,
                 continuous_features_indices=args.continuous_features_indices,
                 features_lstm_units=args.features_lstm_units,
-                stateful=args.stateful
+                stateful=args.stateful,
+                masked_crf_loss=args.masked_crf_loss
             ),
             training_props=dict(
                 initial_epoch=args.initial_epoch,
