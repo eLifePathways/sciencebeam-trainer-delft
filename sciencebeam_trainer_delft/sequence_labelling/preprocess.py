@@ -66,19 +66,18 @@ def faster_preprocessor_fit(self: DelftWordPreprocessor, X, y):
     chars = {PAD: 0, UNK: 1}
     tags = {PAD: 0}
 
-    if self.return_chars:
-        temp_chars = {
-            c
-            for w in set(itertools.chain(*X))
-            for c in w
-        }
+    temp_chars = {
+        c
+        for w in set(itertools.chain(*X))
+        for c in w
+    }
 
-        sorted_chars = sorted(temp_chars)
-        sorted_chars_dict = {
-            c: idx + 2
-            for idx, c in enumerate(sorted_chars)
-        }
-        chars = {**chars, **sorted_chars_dict}
+    sorted_chars = sorted(temp_chars)
+    sorted_chars_dict = {
+        c: idx + 2
+        for idx, c in enumerate(sorted_chars)
+    }
+    chars = {**chars, **sorted_chars_dict}
 
     temp_tags = set(itertools.chain(*y))
     sorted_tags = sorted(temp_tags)

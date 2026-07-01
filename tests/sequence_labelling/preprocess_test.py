@@ -3,10 +3,13 @@ import logging
 import numpy as np
 from sklearn.base import TransformerMixin
 
+from delft.sequenceLabelling.preprocess import PAD, UNK
+
 from sciencebeam_trainer_delft.utils.typing import T_GetSetStateProtocol
 from sciencebeam_trainer_delft.sequence_labelling.preprocess import (
     WordPreprocessor,
-    FeaturesPreprocessor
+    FeaturesPreprocessor,
+    faster_preprocessor_fit
 )
 
 
@@ -176,3 +179,44 @@ class TestFeaturesPreprocessor:
         LOGGER.debug('features_transformed: %s', features_transformed)
         LOGGER.debug('features_transformed.shape: %s', features_transformed.shape)
         assert features_transformed.tolist() == [[[0.0, 1.0, 0.0], [1.0, 0.0, 1.0]]]
+
+
+class TestFasterPreprocessorFit:
+    def test_should_build_char_vocab_with_default_return_chars_false(self):
+        # return_chars=False is the default; the old code guarded char vocab
+        # behind `if self.return_chars:`, so vocab_char was never populated.
+        preprocessor = WordPreprocessor()
+        assert preprocessor.return_chars is False
+        faster_preprocessor_fit(preprocessor, [['Word1']], [['label1']])
+        for c in 'Word1':
+            assert c in preprocessor.vocab_char
+
+    def test_should_build_char_vocab_with_return_chars_true(self):
+        preprocessor = WordPreprocessor(return_chars=True)
+        faster_preprocessor_fit(preprocessor, [['Word1']], [['label1']])
+        for c in 'Word1':
+            assert c in preprocessor.vocab_char
+
+    def test_should_build_tag_vocab(self):
+        preprocessor = WordPreprocessor()
+        faster_preprocessor_fit(preprocessor, [['Word1', 'Word2']], [['label1', 'label2']])
+        assert 'label1' in preprocessor.vocab_tag
+        assert 'label2' in preprocessor.vocab_tag
+
+    def test_should_include_pad_and_unk_in_char_vocab(self):
+        preprocessor = WordPreprocessor()
+        faster_preprocessor_fit(preprocessor, [['Word1']], [['label1']])
+        assert PAD in preprocessor.vocab_char
+        assert UNK in preprocessor.vocab_char
+        assert preprocessor.vocab_char[PAD] == 0
+        assert preprocessor.vocab_char[UNK] == 1
+
+    def test_should_build_char_vocab_from_all_words_across_sentences(self):
+        preprocessor = WordPreprocessor()
+        faster_preprocessor_fit(
+            preprocessor,
+            [['abc'], ['xyz']],
+            [['tag1'], ['tag1']]
+        )
+        for c in 'abcxyz':
+            assert c in preprocessor.vocab_char
