@@ -770,7 +770,18 @@ The following environment variables can be specified:
 
 ## Training in Google's Vertex AI
 
-You can train a model using Google's [Vertex AI](https://cloud.google.com/vertex-ai/) custom jobs. Use the wrapper script, passing gcloud options before `--` and training args after:
+You can train a model using Google's [Vertex AI](https://cloud.google.com/vertex-ai/) custom jobs. e.g.
+
+```bash
+gcloud ai custom-jobs create \
+    --project="your-gcp-project" \
+    --region="us-central1" \
+    --display-name="my_citation_model" \
+    --worker-pool-spec="machine-type=n1-highmem-8,accelerator-type=NVIDIA_TESLA_T4,accelerator-count=1,replica-count=1,container-image-uri=us-central1-docker.pkg.dev/your-gcp-project/ml-containers/sciencebeam-trainer-delft:0.0.40" \
+    --args="python,-m,sciencebeam_trainer_delft.sequence_labelling.grobid_trainer,citation,train_eval,--job-dir=gs://your-job-bucket/path,--auto-resume,--batch-size=900,--no-embedding,--max-sequence-length=100,--input,https://github.com/eLifePathways/sciencebeam-datasets/releases/download/grobid-0.9.0/delft-grobid-0.9.0-citation.train.gz,--early-stopping-patience=10,--architecture=CustomBidLSTM_CRF,--use-features,--feature-indices=9-27,--word-lstm-units=100,--max-epoch=300,--checkpoint=gs://your-model-bucket/citation/checkpoints/my_citation_model,--output=gs://your-model-bucket/citation/models/my_citation_model"
+```
+
+Or using the project's wrapper script, passing gcloud options before `--` and training args after:
 
 ```bash
 ./gcloud-ai-custom-job-submit.sh \
