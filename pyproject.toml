@@ -14,7 +14,7 @@ tf = [
     "wrapt>=1.14.0",
     # provides libdevice.10.bc, needed by TensorFlow's XLA GPU JIT compiler
     # (normally pulled in via tensorflow's own `and-cuda` extra, which we don't use)
-    "nvidia-cuda-nvcc-cu12==12.3.107; sys_platform == 'linux'",
+    "nvidia-cuda-nvcc-cu12==12.9.86; sys_platform == 'linux'",
 ]
 delft = [
     "delft>=0.4.3",
