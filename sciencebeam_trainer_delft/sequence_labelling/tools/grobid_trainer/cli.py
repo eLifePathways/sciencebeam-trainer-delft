@@ -27,7 +27,8 @@ from sciencebeam_trainer_delft.utils.logging import (
 from sciencebeam_trainer_delft.embedding import EmbeddingManager
 
 from sciencebeam_trainer_delft.sequence_labelling.utils.train_notify import (
-    get_train_notification_manager
+    get_train_notification_manager,
+    check_required_gpu
 )
 
 from sciencebeam_trainer_delft.sequence_labelling.models import patch_get_model
@@ -232,6 +233,14 @@ class TrainSubCommand(GrobidTrainerSubCommand):
     def do_run(self, args: argparse.Namespace):
         if not args.model:
             raise ValueError("model required")
+        tf_info = get_tf_info()
+        LOGGER.info('get_tf_info: %s', tf_info)
+        check_required_gpu(
+            require_gpu=args.require_gpu,
+            tf_info=tf_info,
+            model_path=args.model,
+            train_notification_manager=get_train_notification_manager(args)
+        )
         if args.preload_embedding:
             self.preload_and_validate_embedding(
                 args.preload_embedding,
@@ -241,7 +250,6 @@ class TrainSubCommand(GrobidTrainerSubCommand):
             args.embedding,
             use_word_embeddings=args.use_word_embeddings and not args.resume_train_model_path
         )
-        LOGGER.info('get_tf_info: %s', get_tf_info())
         train(
             embeddings_name=embedding_name,
             **self.get_train_args(args)
@@ -290,6 +298,14 @@ class TrainEvalSubCommand(GrobidTrainerSubCommand):
             raise ValueError("model required")
         if args.fold_count < 1:
             raise ValueError("fold-count should be equal or more than 1")
+        tf_info = get_tf_info()
+        LOGGER.info('get_tf_info: %s', tf_info)
+        check_required_gpu(
+            require_gpu=args.require_gpu,
+            tf_info=tf_info,
+            model_path=args.model,
+            train_notification_manager=get_train_notification_manager(args)
+        )
         if args.preload_embedding:
             self.preload_and_validate_embedding(
                 args.preload_embedding,
@@ -299,7 +315,6 @@ class TrainEvalSubCommand(GrobidTrainerSubCommand):
             args.embedding,
             use_word_embeddings=args.use_word_embeddings and not args.resume_train_model_path
         )
-        LOGGER.info('get_tf_info: %s', get_tf_info())
         train_eval(
             fold_count=args.fold_count,
             embeddings_name=embedding_name,
