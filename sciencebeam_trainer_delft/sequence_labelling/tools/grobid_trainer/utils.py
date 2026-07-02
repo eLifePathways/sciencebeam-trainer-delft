@@ -26,6 +26,10 @@ from sciencebeam_trainer_delft.utils.io import (
     write_text,
     auto_uploading_output_file
 )
+from sciencebeam_trainer_delft.utils.tf import (
+    get_tf_info,
+    get_tf_device_summary
+)
 
 from sciencebeam_trainer_delft.embedding import EmbeddingManager
 
@@ -190,7 +194,8 @@ def notify_model_train_start(
         model_path=model.get_model_output_path(output_path),
         checkpoints_path=model.log_dir,
         resume_train_model_path=model.model_path,
-        initial_epoch=model.training_config.initial_epoch
+        initial_epoch=model.training_config.initial_epoch,
+        device=get_tf_device_summary(get_tf_info())
     )
 
 

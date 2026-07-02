@@ -7,6 +7,10 @@ import requests
 from sciencebeam_trainer_delft.sequence_labelling.evaluation import (
     ClassificationResult
 )
+from sciencebeam_trainer_delft.utils.tf import (
+    get_tf_gpu_devices,
+    get_tf_device_summary
+)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -17,7 +21,8 @@ DEFAULT_TRAIN_START_MESSAGE_FORMAT = '\n'.join([
     'model_path: `{model_path}`',
     'checkpoints_path: `{checkpoints_path}`',
     'resume_train_model_path: `{resume_train_model_path}`',
-    'initial_epoch: `{initial_epoch}`'
+    'initial_epoch: `{initial_epoch}`',
+    'device: `{device}`'
 ])
 
 
@@ -94,14 +99,16 @@ class TrainNotificationManager:
         model_path: str,
         checkpoints_path: Optional[str],
         resume_train_model_path: Optional[str],
-        initial_epoch: int
+        initial_epoch: int,
+        device: Optional[str] = None
     ):
         self.send_notification(
             self.notification_train_start_message,
             model_path=model_path,
             checkpoints_path=checkpoints_path,
             resume_train_model_path=resume_train_model_path,
-            initial_epoch=initial_epoch
+            initial_epoch=initial_epoch,
+            device=device
         )
 
     def notify_success(
@@ -185,3 +192,27 @@ def notify_train_error(
 ):
     if train_notification_manager is not None:
         train_notification_manager.notify_error(**kwargs)
+
+
+class RequiredGpuNotAvailable(RuntimeError):
+    pass
+
+
+def check_required_gpu(
+    require_gpu: bool,
+    tf_info: dict,
+    model_path: str,
+    train_notification_manager: Optional[TrainNotificationManager]
+):
+    if not require_gpu or get_tf_gpu_devices(tf_info):
+        return
+    error_message = (
+        'GPU required (--require-gpu) but none available (device: %s)'
+        % get_tf_device_summary(tf_info)
+    )
+    notify_train_error(
+        train_notification_manager,
+        model_path=model_path,
+        error=error_message
+    )
+    raise RequiredGpuNotAvailable(error_message)

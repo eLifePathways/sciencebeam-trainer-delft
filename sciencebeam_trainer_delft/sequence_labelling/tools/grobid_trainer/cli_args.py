@@ -292,6 +292,14 @@ def add_input_window_stride_argument(parser: argparse.ArgumentParser, **kwargs):
     )
 
 
+def add_require_gpu_argument(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "--require-gpu",
+        action="store_true",
+        help="Fail training immediately if no GPU device is available"
+    )
+
+
 def add_train_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--architecture", default='BidLSTM_CRF',
@@ -477,6 +485,7 @@ def add_train_arguments(parser: argparse.ArgumentParser):
         help="enables auto-resuming training using checkpoints"
     )
     add_transfer_learning_arguments(parser)
+    add_require_gpu_argument(parser)
     add_train_notification_arguments(parser)
 
 
