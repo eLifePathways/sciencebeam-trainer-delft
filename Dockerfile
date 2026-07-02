@@ -97,6 +97,13 @@ RUN python -m pytest -p no:cacheprovider -m 'slow'
 # main image
 FROM dev AS delft
 
+# TensorFlow's GPU backend dlopen's libcudnn.so.8, but torch pins nvidia-cudnn-cu12==9.x
+# (a different SONAME) and only one version of that package can be installed at a time.
+# Install cuDNN 8 separately (not into the venv) and expose it via LD_LIBRARY_PATH so
+# TensorFlow can find it without disturbing the cuDNN 9 that torch depends on.
+RUN uv pip install --no-deps --target /opt/cudnn8-compat nvidia-cudnn-cu12==8.9.7.29
+ENV LD_LIBRARY_PATH=/opt/cudnn8-compat/nvidia/cudnn/lib:$LD_LIBRARY_PATH
+
 # add additional wrapper entrypoint for OVERRIDE_EMBEDDING_URL
 COPY ./docker/entrypoint.sh ${PROJECT_FOLDER}/entrypoint.sh
 ENTRYPOINT ["/opt/sciencebeam-trainer-delft/entrypoint.sh"]

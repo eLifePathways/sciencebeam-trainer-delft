@@ -5,7 +5,15 @@ DOCKER_COMPOSE = $(DOCKER_COMPOSE_DEV)
 VENV = .venv
 UV = VIRTUAL_ENV=$(VENV) uv
 PIP = $(UV) pip
-PYTHON = PATH=$(VENV)/bin:$$PATH $(VENV)/bin/python
+
+# TensorFlow's GPU backend dlopen's libcudnn.so.8, but torch pins nvidia-cudnn-cu12==9.x
+# (a different SONAME) and only one version of that package can be installed at a time.
+# We install cuDNN 8 separately (not into the venv) and expose it via LD_LIBRARY_PATH so
+# TensorFlow can find it without disturbing the cuDNN 9 that torch depends on.
+CUDNN8_COMPAT_DIR = .venv-cudnn8-compat
+CUDNN8_COMPAT_VERSION = 8.9.7.29
+
+PYTHON = PATH=$(VENV)/bin:$$PATH LD_LIBRARY_PATH=$(CUDNN8_COMPAT_DIR)/nvidia/cudnn/lib:$$LD_LIBRARY_PATH $(VENV)/bin/python
 
 BATCH_SIZE = 10
 MAX_EPOCH = 1
@@ -78,7 +86,11 @@ dev-install:
 	$(UV) sync --active --frozen --all-extras --all-groups
 
 
-dev-venv: venv-create dev-install
+dev-install-cudnn8-compat:
+	$(UV) pip install --no-deps --target $(CUDNN8_COMPAT_DIR) nvidia-cudnn-cu12==$(CUDNN8_COMPAT_VERSION)
+
+
+dev-venv: venv-create dev-install dev-install-cudnn8-compat
 
 
 dev-flake8:
