@@ -768,51 +768,46 @@ The following environment variables can be specified:
 | `SCIENCEBEAM_DELFT_BATCH_SIZE` | `10` | The batch size to use
 | `SCIENCEBEAM_DELFT_STATEFUL` | *None* (*False*) | Whether to enable stateful mode. This may only work with a batch size of `1`. Note: the stateful mode is currently very slow.
 
-## Training in Google's AI Platform
+## Training in Google's Vertex AI
 
-You can train a model using Google's [AI Platform](https://cloud.google.com/ai-platform/). e.g.
-
-```bash
-gcloud beta ai-platform jobs submit training \
-    --job-dir "gs://your-job-bucket/path" \
-    --scale-tier=custom \
-    --master-machine-type=n1-highmem-8 \
-    --master-accelerator=count=1,type=NVIDIA_TESLA_K80 \
-    --region=europe-west1 \
-    --stream-logs \
-    --module-name sciencebeam_trainer_delft.sequence_labelling.grobid_trainer \
-    --package-path sciencebeam_trainer_delft \
-    -- \
-    header train_eval \
-    --batch-size="16" \
-    --embedding="https://github.com/elifesciences/sciencebeam-models/releases/download/v0.0.1/glove.6B.50d.txt.xz" \
-    --max-sequence-length="500" \
-    --input=https://github.com/elifesciences/sciencebeam-datasets/releases/download/grobid-0.8.2/delft-grobid-0.8.2-header.train.gz \
-    --limit="10000" \
-    --early-stopping-patience="10" \
-    --max-epoch="50"
-```
-
-Or using the project's wrapper script which provides some default values:
+You can train a model using Google's [Vertex AI](https://cloud.google.com/vertex-ai/) custom jobs. e.g.
 
 ```bash
-./gcloud-ai-platform-submit.sh \
-    --job-prefix "my_job_prefix" \
-    --job-dir "gs://your-job-bucket/path" \
-    --scale-tier=custom \
-    --master-machine-type=n1-highmem-8 \
-    --master-accelerator=count=1,type=NVIDIA_TESLA_K80 \
-    --region=europe-west1 \
-    -- \
-    header train_eval \
-    --batch-size="16" \
-    --embedding="https://github.com/elifesciences/sciencebeam-models/releases/download/v0.0.1/glove.6B.50d.txt.xz" \
-    --max-sequence-length="500" \
-    --input=https://github.com/elifesciences/sciencebeam-datasets/releases/download/grobid-0.8.2/delft-grobid-0.8.2-header.train.gz \
-    --limit="10000" \
-    --early-stopping-patience="10" \
-    --max-epoch="50"
+gcloud ai custom-jobs create \
+    --project="your-gcp-project" \
+    --region="us-central1" \
+    --display-name="my_citation_model" \
+    --worker-pool-spec="machine-type=n1-highmem-8,accelerator-type=NVIDIA_TESLA_T4,accelerator-count=1,replica-count=1,container-image-uri=us-central1-docker.pkg.dev/your-gcp-project/ml-containers/sciencebeam-trainer-delft:0.0.40" \
+    --args="python,-m,sciencebeam_trainer_delft.sequence_labelling.grobid_trainer,citation,train_eval,--job-dir=gs://your-job-bucket/path,--auto-resume,--batch-size=900,--no-embedding,--max-sequence-length=100,--input,https://github.com/eLifePathways/sciencebeam-datasets/releases/download/grobid-0.9.0/delft-grobid-0.9.0-citation.train.gz,--early-stopping-patience=10,--architecture=CustomBidLSTM_CRF,--use-features,--feature-indices=9-27,--word-lstm-units=100,--max-epoch=300,--checkpoint=gs://your-model-bucket/citation/checkpoints/my_citation_model,--output=gs://your-model-bucket/citation/models/my_citation_model"
 ```
+
+Or using the project's wrapper script, passing gcloud options before `--` and training args after:
+
+```bash
+./gcloud-ai-custom-job-submit.sh \
+    --project "your-gcp-project" \
+    --region "us-central1" \
+    --display-name "my_citation_model" \
+    --container-image-uri "us-central1-docker.pkg.dev/your-gcp-project/ml-containers/sciencebeam-trainer-delft:0.0.40" \
+    -- \
+    citation train_eval \
+    --job-dir "gs://your-job-bucket/path" \
+    --auto-resume \
+    --batch-size=900 \
+    --no-embedding \
+    --max-sequence-length=100 \
+    --input https://github.com/eLifePathways/sciencebeam-datasets/releases/download/grobid-0.9.0/delft-grobid-0.9.0-citation.train.gz \
+    --early-stopping-patience=10 \
+    --architecture=CustomBidLSTM_CRF \
+    --use-features \
+    --feature-indices=9-27 \
+    --word-lstm-units=100 \
+    --max-epoch=300 \
+    --checkpoint="gs://your-model-bucket/citation/checkpoints/my_citation_model" \
+    --output="gs://your-model-bucket/citation/models/my_citation_model"
+```
+
+By default a single `n1-highmem-8` machine with one `NVIDIA_TESLA_T4` GPU is used. Pass `--no-accelerator` for a CPU-only job, or override with `--machine-type`, `--accelerator-type`, and `--accelerator-count`.
 
 (Alternatively you can train for free using Google Colab, see Example Notebooks above)
 
