@@ -943,11 +943,11 @@ wheels = [
 
 [[package]]
 name = "nvidia-cuda-nvcc-cu12"
-version = "12.3.107"
+version = "12.9.86"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4a/d9/352879c1d749b787b5c068b32673a73ce1cb6c52874b1d2e80044b101485/nvidia_cuda_nvcc_cu12-12.3.107-py3-none-manylinux1_x86_64.whl", hash = "sha256:a3344b94f5e89023fa17e0bbf8fb0dd26d5ef6f4091a5aab08f215e4999eac62", size = 21955316, upload-time = "2024-01-02T17:11:26.693Z" },
-    { url = "https://files.pythonhosted.org/packages/99/a2/7daafa67d342909e144ecf951395bcc0ced2171625020f283d166aacb794/nvidia_cuda_nvcc_cu12-12.3.107-py3-none-manylinux2014_aarch64.whl", hash = "sha256:35de71d29aef2e8699f083e5ef604155a8e1ada614d3ccba796303e8d2252c61", size = 20098690, upload-time = "2024-03-12T20:30:52.242Z" },
+    { url = "https://files.pythonhosted.org/packages/25/48/b54a06168a2190572a312bfe4ce443687773eb61367ced31e064953dd2f7/nvidia_cuda_nvcc_cu12-12.9.86-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl", hash = "sha256:5d6a0d32fdc7ea39917c20065614ae93add6f577d840233237ff08e9a38f58f0", size = 40546229, upload-time = "2025-06-05T20:01:53.357Z" },
+    { url = "https://files.pythonhosted.org/packages/d6/5c/8cc072436787104bbbcbde1f76ab4a0d89e68f7cebc758dd2ad7913a43d0/nvidia_cuda_nvcc_cu12-12.9.86-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:44e1eca4d08926193a558d2434b1bf83d57b4d5743e0c431c0c83d51da1df62b", size = 39411138, upload-time = "2025-06-05T20:01:43.182Z" },
 ]
 
 [[package]]
@@ -1675,7 +1675,7 @@ dev = [
 requires-dist = [
     { name = "delft", marker = "extra == 'delft'", specifier = ">=0.4.3" },
     { name = "jsonpickle", specifier = ">=1.4.1" },
-    { name = "nvidia-cuda-nvcc-cu12", marker = "sys_platform == 'linux' and extra == 'tf'", specifier = "==12.3.107" },
+    { name = "nvidia-cuda-nvcc-cu12", marker = "sys_platform == 'linux' and extra == 'tf'", specifier = ">=12.3.107" },
     { name = "tensorflow", marker = "extra == 'tf'", specifier = ">=2.17.1" },
     { name = "wrapt", marker = "extra == 'tf'", specifier = ">=1.14.0" },
 ]
