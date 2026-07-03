@@ -102,7 +102,13 @@ FROM dev AS delft
 # Install cuDNN 8 separately (not into the venv) and expose it via LD_LIBRARY_PATH so
 # TensorFlow can find it without disturbing the cuDNN 9 that torch depends on.
 RUN uv pip install --no-deps --target /opt/cudnn8-compat nvidia-cudnn-cu12==8.9.7.29
-ENV LD_LIBRARY_PATH=/opt/cudnn8-compat/nvidia/cudnn/lib:$LD_LIBRARY_PATH
+
+# On Vertex AI (and similar GKE-based GPU infrastructure), the host's NVIDIA driver
+# libraries (e.g. libcuda.so) are bind-mounted into the container at /usr/local/nvidia,
+# rather than being auto-discovered the way newer CDI-based Docker GPU setups do. Our
+# base image has no CUDA-awareness, so it never adds this path; without it, TF can't
+# find libcuda.so even though the host driver is present, and falls back to CPU only.
+ENV LD_LIBRARY_PATH=/opt/cudnn8-compat/nvidia/cudnn/lib:/usr/local/nvidia/lib64:/usr/local/nvidia/lib:$LD_LIBRARY_PATH
 
 # add additional wrapper entrypoint for OVERRIDE_EMBEDDING_URL
 COPY ./docker/entrypoint.sh ${PROJECT_FOLDER}/entrypoint.sh
