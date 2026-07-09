@@ -160,7 +160,7 @@ def get_preprocessor(
     )
     return Preprocessor(
         max_char_length=model_config.max_char_length,
-        feature_preprocessor=feature_preprocessor
+        feature_preprocessor=feature_preprocessor  # type: ignore[arg-type]
     )
 
 
@@ -187,7 +187,9 @@ def prepare_preprocessor(
         if model_config.features_indices != preprocessor.feature_preprocessor.features_indices:
             LOGGER.info('revised features_indices: %s', model_config.features_indices)
             model_config.features_indices = preprocessor.feature_preprocessor.features_indices
-        model_config.features_map_to_index = preprocessor.feature_preprocessor.features_map_to_index
+        model_config.features_map_to_index = (  # type: ignore[attr-defined]
+            preprocessor.feature_preprocessor.features_map_to_index
+        )
     LOGGER.info('done fitting preprocessor')
     return preprocessor
 
@@ -254,7 +256,7 @@ class Sequence(_Sequence):
         self.transfer_learning_config = transfer_learning_config
         self.dataset_transformer_factory = DummyDatasetTransformer
         self.tag_transformed = tag_transformed
-        super().__init__(
+        super().__init__(  # type: ignore[misc]
             *args,
             max_sequence_length=max_sequence_length,
             batch_size=batch_size,
@@ -282,9 +284,9 @@ class Sequence(_Sequence):
         self.multiprocessing = multiprocessing
         self.tag_debug_reporter = get_tag_debug_reporter_if_enabled()
         self._load_exception: Optional[Exception] = None
-        self.p: Optional[Preprocessor] = None
-        self.model: Optional[BaseModel] = None
-        self.models: List[BaseModel] = []
+        self.p: Optional[Preprocessor] = None  # type: ignore[assignment]
+        self.model: Optional[BaseModel] = None  # type: ignore[assignment]
+        self.models: List[BaseModel] = []  # type: ignore[assignment]
 
     def update_model_config_word_embedding_size(self):
         if self.embeddings:
@@ -313,7 +315,7 @@ class Sequence(_Sequence):
                 used_features_indices=self.model_config.features_indices
             )
 
-    def train(  # pylint: disable=arguments-differ
+    def train(  # type: ignore[override]  # pylint: disable=arguments-differ
         self,
         x_train,
         y_train,
@@ -351,7 +353,8 @@ class Sequence(_Sequence):
                 )
             if transfer_learning_source:
                 transfer_learning_source.apply_preprocessor(target_preprocessor=self.p)
-            self.model_config.char_vocab_size = len(self.p.vocab_char)
+            assert self.p is not None
+            self.model_config.char_vocab_size = len(self.p.vocab_char)  # type: ignore[arg-type]
             self.model_config.case_vocab_size = len(self.p.vocab_case)
 
             if self.model_config.use_features and features_train is not None:
@@ -371,7 +374,10 @@ class Sequence(_Sequence):
                     LOGGER.info('features do not implement shape, set max_feature_size manually')
 
         if self.model is None:
-            self.model = get_model(self.model_config, self.p, len(self.p.vocab_tag))
+            assert self.p is not None
+            self.model = get_model(
+                self.model_config, self.p, len(self.p.vocab_tag)  # type: ignore[arg-type]
+            )
             if transfer_learning_source:
                 transfer_learning_source.apply_weights(target_model=self.model)
         if self.transfer_learning_config:
@@ -398,7 +404,7 @@ class Sequence(_Sequence):
             model_config=self.model_config
         )
 
-    def train_nfold(  # pylint: disable=arguments-differ
+    def train_nfold(  # type: ignore[override]  # pylint: disable=arguments-differ
         self,
         x_train,
         y_train,
@@ -423,14 +429,17 @@ class Sequence(_Sequence):
                 features=features_train,
                 model_config=self.model_config
             )
-        self.model_config.char_vocab_size = len(self.p.vocab_char)
+        assert self.p is not None
+        self.model_config.char_vocab_size = len(self.p.vocab_char)  # type: ignore[arg-type]
         self.model_config.case_vocab_size = len(self.p.vocab_case)
         self.p.return_lengths = True
 
         self.models = []
 
         for _ in range(0, fold_number):
-            model = get_model(self.model_config, self.p, len(self.p.vocab_tag))
+            model = get_model(
+                self.model_config, self.p, len(self.p.vocab_tag)  # type: ignore[arg-type]
+            )
             self.models.append(model)
 
         trainer = Trainer(
@@ -467,6 +476,7 @@ class Sequence(_Sequence):
             self.eval_single(x_test, y_test, features=features)
 
     def create_eval_data_generator(self, *args, **kwargs) -> DataGenerator:
+        assert self.p is not None
         return DataGenerator(  # type: ignore
             *args,
             batch_size=(
@@ -760,7 +770,10 @@ class Sequence(_Sequence):
         self.embeddings = self.get_embedding_for_model_config(self.model_config)
         self.update_model_config_word_embedding_size()
 
-        self.model = get_model(self.model_config, self.p, ntags=len(self.p.vocab_tag))
+        assert self.p is not None
+        self.model = get_model(
+            self.model_config, self.p, ntags=len(self.p.vocab_tag)  # type: ignore[arg-type]
+        )
         # update stateful flag depending on whether the model is actually stateful
         # (and supports that)
         self.model_config.stateful = is_model_stateful(self.model)
