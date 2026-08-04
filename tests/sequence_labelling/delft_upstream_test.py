@@ -1,8 +1,8 @@
 """Guards upstream delft behaviour this repo's published models depend on.
 
 Every model published from this repo uses the ChainCRF path, so the defects
-covered here are not avoidable by configuration. They are recorded in
-.project-notes/delft-1.0.1-findings.md and required by spec 001 requirement 5.
+covered here are not avoidable by configuration: the CRF transitions are left
+out of the optimizer, and a saved model cannot be loaded back.
 
 The xfail markers are strict: when a fixed delft is released, these tests pass
 unexpectedly and the run fails, which is the signal to drop the marker and the
