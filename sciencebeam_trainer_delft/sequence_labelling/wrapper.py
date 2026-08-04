@@ -9,7 +9,7 @@ import logging
 import os
 import time
 from functools import partial
-from typing import Callable, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Iterable, List, Optional, Tuple, Union, cast
 from typing import Sequence as TypingSequence
 
 import numpy as np
@@ -172,7 +172,8 @@ def get_preprocessor(
     )
     return Preprocessor(
         max_char_length=model_config.max_char_length,
-        feature_preprocessor=feature_preprocessor
+        # upstream annotates this as required while defaulting it to None
+        feature_preprocessor=cast(Any, feature_preprocessor)
     )
 
 
@@ -199,9 +200,19 @@ def prepare_preprocessor(
         if model_config.features_indices != preprocessor.feature_preprocessor.features_indices:
             LOGGER.info('revised features_indices: %s', model_config.features_indices)
             model_config.features_indices = preprocessor.feature_preprocessor.features_indices
-        model_config.features_map_to_index = preprocessor.feature_preprocessor.features_map_to_index
+        # set dynamically, as upstream's own prepare_preprocessor does
+        setattr(
+            model_config, 'features_map_to_index',
+            preprocessor.feature_preprocessor.features_map_to_index
+        )
     LOGGER.info('done fitting preprocessor')
     return preprocessor
+
+
+def get_vocab_size(vocab) -> int:
+    # upstream initialises its vocabularies to None and assigns them on fit
+    assert vocab is not None, 'preprocessor not fitted'
+    return len(vocab)
 
 
 def get_model_directory(model_name: str, dir_path: Optional[str] = None):
@@ -407,8 +418,9 @@ class Sequence:
                 )
             if transfer_learning_source:
                 transfer_learning_source.apply_preprocessor(target_preprocessor=self.p)
-            self.model_config.char_vocab_size = len(self.p.vocab_char)
-            self.model_config.case_vocab_size = len(self.p.vocab_case)
+            assert self.p is not None
+            self.model_config.char_vocab_size = get_vocab_size(self.p.vocab_char)
+            self.model_config.case_vocab_size = get_vocab_size(self.p.vocab_case)
 
             if self.model_config.use_features and features_train is not None:
                 LOGGER.info('x_train.shape: %s', x_train.shape)
@@ -426,8 +438,9 @@ class Sequence:
                 except Exception:  # pylint: disable=broad-except
                     LOGGER.info('features do not implement shape, set max_feature_size manually')
 
+        assert self.p is not None
         if self.model is None:
-            self.model = get_model(self.model_config, self.p, len(self.p.vocab_tag))
+            self.model = get_model(self.model_config, self.p, get_vocab_size(self.p.vocab_tag))
             if transfer_learning_source:
                 transfer_learning_source.apply_weights(target_model=self.model)
         if self.transfer_learning_config:
@@ -482,12 +495,13 @@ class Sequence:
                 features=features_train,
                 model_config=self.model_config
             )
-        self.model_config.char_vocab_size = len(self.p.vocab_char)
-        self.model_config.case_vocab_size = len(self.p.vocab_case)
+        assert self.p is not None
+        self.model_config.char_vocab_size = get_vocab_size(self.p.vocab_char)
+        self.model_config.case_vocab_size = get_vocab_size(self.p.vocab_case)
         self.p.return_lengths = True
 
         self.models = [
-            get_model(self.model_config, self.p, len(self.p.vocab_tag))
+            get_model(self.model_config, self.p, get_vocab_size(self.p.vocab_tag))
             for _ in range(0, fold_number)
         ]
 
@@ -532,6 +546,7 @@ class Sequence:
         )
 
     def create_eval_data_generator(self, *args, **kwargs) -> DataGenerator:
+        assert self.p is not None
         return DataGenerator(  # type: ignore
             *args,
             batch_size=(
@@ -808,6 +823,7 @@ class Sequence:
         directory = self.download_model(directory)
         self.model_path = directory
         self.p = model_loader.load_preprocessor_from_directory(directory)
+        assert self.p is not None
         self.model_config = model_loader.load_model_config_from_directory(directory)
         self.model_config.batch_size = self.training_config.batch_size
         if self.stateful is not None:
@@ -818,7 +834,7 @@ class Sequence:
         self.embeddings = self.get_embedding_for_model_config(self.model_config)
         self.update_model_config_word_embedding_size()
 
-        self.model = get_model(self.model_config, self.p, ntags=len(self.p.vocab_tag))
+        self.model = get_model(self.model_config, self.p, ntags=get_vocab_size(self.p.vocab_tag))
         # update stateful flag depending on whether the model is actually stateful
         # (and supports that)
         self.model_config.stateful = is_model_stateful(self.model)
