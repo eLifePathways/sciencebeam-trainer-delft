@@ -1,16 +1,22 @@
+"""The API this repo exposes for training, evaluating and tagging.
+
+Upstream's wrapper of the same name is not subclassed: it loads embeddings in
+its constructor from its own resource registry, where this repo resolves them
+lazily through the embedding manager, and every method it offers is overridden
+here anyway.
+"""
 import logging
 import os
 import time
 from functools import partial
-from typing import Callable, Iterable, List, Optional, Tuple, Union, cast
+from typing import Callable, Iterable, List, Optional, Tuple, Union
 from typing import Sequence as TypingSequence
 
 import numpy as np
+from torch import nn
 
-from delft.sequenceLabelling.models import BaseModel
-from delft.sequenceLabelling.preprocess import Preprocessor, FeaturesPreprocessor
-from delft.sequenceLabelling.wrapper import Sequence as _Sequence
-from delft.sequenceLabelling.config import TrainingConfig as DelftTrainingConfig
+from delft.sequenceLabelling.preprocess import Preprocessor
+from delft.utilities.preprocess import FeaturesPreprocessor
 
 from sciencebeam_trainer_delft.resources.default_config import DEFAULT_RESOURCE_REGISTRY_FILE
 from sciencebeam_trainer_delft.sequence_labelling.typing import (
@@ -35,9 +41,10 @@ from sciencebeam_trainer_delft.sequence_labelling.data_generator import (
     iter_batch_text_list,
     get_concatenated_embeddings_token_count
 )
-from sciencebeam_trainer_delft.sequence_labelling.trainer import (
-    Scorer,
-    Trainer
+from sciencebeam_trainer_delft.sequence_labelling.data_loader_torch import DataLoader
+from sciencebeam_trainer_delft.sequence_labelling.trainer_torch import (
+    ModelTrainer,
+    get_fold_data
 )
 from sciencebeam_trainer_delft.sequence_labelling.models import (
     is_model_stateful,
@@ -51,7 +58,10 @@ from sciencebeam_trainer_delft.sequence_labelling.preprocess import (
 )
 from sciencebeam_trainer_delft.sequence_labelling.saving import ModelSaver, ModelLoader
 from sciencebeam_trainer_delft.sequence_labelling.tagger import Tagger
-from sciencebeam_trainer_delft.sequence_labelling.evaluation import ClassificationResult
+from sciencebeam_trainer_delft.sequence_labelling.evaluation import (
+    ClassificationResult,
+    get_classification_result_for_model
+)
 
 from sciencebeam_trainer_delft.sequence_labelling.debug import get_tag_debug_reporter_if_enabled
 
@@ -81,6 +91,8 @@ DEFAUT_MODEL_PATH = 'data/models/sequenceLabelling/'
 
 
 DEFAUT_BATCH_SIZE = 10
+
+DEFAULT_DEVICE = 'cpu'
 
 
 class EnvironmentVariables:
@@ -196,13 +208,30 @@ def get_model_directory(model_name: str, dir_path: Optional[str] = None):
     return os.path.join(dir_path or DEFAUT_MODEL_PATH, model_name)
 
 
-class Sequence(_Sequence):
+class Sequence:
     def __init__(
         self,
-        *args,
+        model_name: str = '',
+        architecture: str = 'BidLSTM_CRF',
+        embeddings_name: Optional[str] = None,
+        char_emb_size: int = 25,
+        char_lstm_units: int = 25,
+        max_char_length: int = 30,
+        word_lstm_units: int = 100,
+        dropout: float = 0.5,
+        recurrent_dropout: float = 0.25,
         use_features: bool = False,
         features_indices: Optional[List[int]] = None,
         features_embedding_size: Optional[int] = None,
+        learning_rate: float = 0.001,
+        lr_decay: float = 0.9,
+        clip_gradients: float = 5.0,
+        max_epoch: int = 50,
+        early_stop: bool = True,
+        patience: int = 5,
+        max_checkpoints_to_keep: int = 0,
+        log_dir: Optional[str] = None,
+        fold_number: int = 1,
         multiprocessing: bool = False,
         embedding_registry_path: Optional[str] = None,
         embedding_manager: Optional[EmbeddingManager] = None,
@@ -217,11 +246,14 @@ class Sequence(_Sequence):
         stateful: Optional[bool] = None,
         transfer_learning_config: Optional[TransferLearningConfig] = None,
         tag_transformed: bool = False,
-        **kwargs
+        device: str = DEFAULT_DEVICE
     ):
         # initialise logging if not already initialised
         logging.basicConfig(level='INFO')
-        LOGGER.debug('Sequence, args=%s, kwargs=%s', args, kwargs)
+        if not model_name:
+            model_name = architecture
+            if embeddings_name:
+                model_name += '_' + embeddings_name
         self.embedding_registry_path = (
             embedding_registry_path
             or (embedding_manager.path if embedding_manager else None)
@@ -247,6 +279,8 @@ class Sequence(_Sequence):
         self.eval_input_window_stride = eval_input_window_stride
         self.eval_batch_size = eval_batch_size
         self.model_path: Optional[str] = None
+        self.log_dir = log_dir
+        self.device = device
         if stateful is None:
             # use a stateful model, if supported
             stateful = get_default_stateful()
@@ -254,37 +288,59 @@ class Sequence(_Sequence):
         self.transfer_learning_config = transfer_learning_config
         self.dataset_transformer_factory = DummyDatasetTransformer
         self.tag_transformed = tag_transformed
-        super().__init__(
-            *args,
-            max_sequence_length=max_sequence_length,
-            batch_size=batch_size,
-            resource_registry_path=self.embedding_registry_path,
-            **kwargs
-        )
         LOGGER.debug('use_features=%s', use_features)
+        # the config takes its attribute names here, not the shorter names of
+        # the upstream constructor parameters, because anything unknown to that
+        # constructor is set as an attribute
         self.model_config: ModelConfig = ModelConfig(
             **{  # type: ignore
-                **vars(self.model_config),
+                'model_name': model_name,
+                'architecture': architecture,
+                'embeddings_name': embeddings_name,
+                'char_embedding_size': char_emb_size,
+                'num_char_lstm_units': char_lstm_units,
+                'max_char_length': max_char_length,
+                'num_word_lstm_units': word_lstm_units,
+                'max_sequence_length': max_sequence_length,
+                'dropout': dropout,
+                'recurrent_dropout': recurrent_dropout,
+                'batch_size': batch_size,
+                'fold_number': fold_number,
                 **(config_props or {}),
                 'features_indices': features_indices,
                 'features_embedding_size': features_embedding_size
             },
             use_features=use_features
         )
+        # a training run has no saved config to take the embeddings from, so
+        # they are resolved here to size the word input, which is empty when
+        # there are none
+        self.embeddings = self.get_embedding_for_model_config(self.model_config)
+        self.model_config.word_embedding_size = 0
         self.update_model_config_word_embedding_size()
         updated_implicit_model_config_props(self.model_config)
         self.update_dataset_transformer_factor()
         self.training_config: TrainingConfig = TrainingConfig(
-            **vars(cast(DelftTrainingConfig, self.training_config)),
-            **(training_props or {})
+            **{  # type: ignore
+                'learning_rate': learning_rate,
+                'batch_size': batch_size,
+                'lr_decay': lr_decay,
+                'clip_gradients': clip_gradients,
+                'max_epoch': max_epoch,
+                'early_stop': early_stop,
+                'patience': patience,
+                'max_checkpoints_to_keep': max_checkpoints_to_keep,
+                'multiprocessing': multiprocessing,
+                **(training_props or {})
+            }
         )
         LOGGER.info('training_config: %s', vars(self.training_config))
         self.multiprocessing = multiprocessing
         self.tag_debug_reporter = get_tag_debug_reporter_if_enabled()
         self._load_exception: Optional[Exception] = None
         self.p: Optional[Preprocessor] = None
-        self.model: Optional[BaseModel] = None
-        self.models: List[BaseModel] = []
+        self.model: Optional[nn.Module] = None
+        self.models: List[nn.Module] = []
 
     def update_model_config_word_embedding_size(self):
         if self.embeddings:
@@ -376,20 +432,23 @@ class Sequence(_Sequence):
                 transfer_learning_source.apply_weights(target_model=self.model)
         if self.transfer_learning_config:
             freeze_model_layers(self.model, self.transfer_learning_config.freeze_layers)
-        trainer = Trainer(
-            self.model,
-            self.models,
-            self.embeddings,
-            self.model_config,
-            training_config=self.training_config,
-            model_saver=self.get_model_saver(),
-            multiprocessing=self.multiprocessing,
-            checkpoint_path=self.log_dir,
-            preprocessor=self.p
-        )
-        trainer.train(
+        self.get_model_trainer(self.model).train(
             x_train, y_train, x_valid, y_valid,
             features_train=features_train, features_valid=features_valid
+        )
+
+    def get_model_trainer(self, model: nn.Module) -> ModelTrainer:
+        assert self.p is not None
+        model.to(self.device)
+        return ModelTrainer(
+            model,
+            model_config=self.model_config,
+            training_config=self.training_config,
+            preprocessor=self.p,
+            embeddings=self.embeddings,
+            model_saver=self.get_model_saver(),
+            checkpoint_path=self.log_dir,
+            device=self.device
         )
 
     def get_model_saver(self):
@@ -427,28 +486,28 @@ class Sequence(_Sequence):
         self.model_config.case_vocab_size = len(self.p.vocab_case)
         self.p.return_lengths = True
 
-        self.models = []
+        self.models = [
+            get_model(self.model_config, self.p, len(self.p.vocab_tag))
+            for _ in range(0, fold_number)
+        ]
 
-        for _ in range(0, fold_number):
-            model = get_model(self.model_config, self.p, len(self.p.vocab_tag))
-            self.models.append(model)
-
-        trainer = Trainer(
-            self.model,
-            self.models,
-            self.embeddings,
-            self.model_config,
-            training_config=self.training_config,
-            model_saver=self.get_model_saver(),
-            checkpoint_path=self.log_dir,
-            preprocessor=self.p
-        )
-        trainer.train_nfold(
-            x_train, y_train,
-            x_valid, y_valid,
-            features_train=features_train,
-            features_valid=features_valid
-        )
+        for fold_id, model in enumerate(self.models):
+            print(
+                '\n------------------------ fold %s--------------------------------------'
+                % fold_id
+            )
+            fold_data = get_fold_data(
+                fold_id, fold_number,
+                x_train, y_train, x_valid, y_valid,
+                features_train=features_train,
+                features_valid=features_valid
+            )
+            self.get_model_trainer(model).train(
+                fold_data.x_train, fold_data.y_train,
+                fold_data.x_valid, fold_data.y_valid,
+                features_train=fold_data.features_train,
+                features_valid=fold_data.features_valid
+            )
 
     def eval(  # pylint: disable=arguments-differ
         self,
@@ -465,6 +524,12 @@ class Sequence(_Sequence):
             self.eval_nfold(x_test, y_test, features=features)
         else:
             self.eval_single(x_test, y_test, features=features)
+
+    def create_eval_data_loader(self, *args, **kwargs) -> DataLoader:
+        return DataLoader(
+            self.create_eval_data_generator(*args, **kwargs),
+            device=self.device
+        )
 
     def create_eval_data_generator(self, *args, **kwargs) -> DataGenerator:
         return DataGenerator(  # type: ignore
@@ -555,27 +620,20 @@ class Sequence(_Sequence):
                     % i
                 )
 
-                # Prepare test data(steps, generator)
-                test_generator = self.create_eval_data_generator(
-                    x_test, y_test,
-                    features=features,
-                    shuffle=False
+                classification_result = get_classification_result_for_model(
+                    self.models[i],
+                    self.create_eval_data_loader(
+                        x_test, y_test,
+                        features=features,
+                        shuffle=False
+                    ),
+                    self.p
                 )
-
-                # Build the evaluator and evaluate the model
-                scorer = Scorer(
-                    test_generator,
-                    self.p,
-                    evaluation=True,
-                    use_crf=self.model_config.use_crf,
-                    use_chain_crf=self.model_config.use_chain_crf
-                )
-                scorer.model = self.models[i]
-                scorer.on_epoch_end(epoch=-1)
-                f1 = scorer.f1
-                precision = scorer.precision
-                recall = scorer.recall
-                reports.append(scorer.report)
+                f1 = classification_result.micro_averages['f1']
+                precision = classification_result.micro_averages['precision']
+                recall = classification_result.micro_averages['recall']
+                print("\tf1 (micro): {:04.2f}".format(f1 * 100))
+                reports.append(classification_result.get_formatted_report(digits=4))
 
                 if best_f1 < f1:
                     best_f1 = f1

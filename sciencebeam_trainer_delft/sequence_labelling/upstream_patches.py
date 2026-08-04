@@ -15,12 +15,13 @@ from delft.utilities.crf_pytorch import ChainCRF
 LOGGER = logging.getLogger(__name__)
 
 
-_ORIGINAL_CHAIN_CRF_INIT = ChainCRF.__init__
+# kept so that the tests guarding the upstream defect can restore it
+ORIGINAL_CHAIN_CRF_INIT = ChainCRF.__init__
 
 
 def _chain_crf_init_with_eager_build(self, num_tags: Optional[int] = None):
     # upstream annotates num_tags as int while defaulting it to None
-    _ORIGINAL_CHAIN_CRF_INIT(self, num_tags)  # type: ignore[arg-type]
+    ORIGINAL_CHAIN_CRF_INIT(self, num_tags)  # type: ignore[arg-type]
     if num_tags:
         # upstream defers this to the first forward pass, by which point the
         # optimizer has already been constructed without these parameters

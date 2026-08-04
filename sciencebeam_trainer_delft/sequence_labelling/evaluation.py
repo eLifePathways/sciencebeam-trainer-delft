@@ -292,6 +292,7 @@ def get_classification_result_for_model(
     Predictions are truncated to the length of the expected tags for the same
     sequence: padding is part of the batch, not part of the evaluation.
     """
+    model.eval()
     y_true: List[Sequence[str]] = []
     y_pred: List[Sequence[str]] = []
     for inputs, labels in data_loader:

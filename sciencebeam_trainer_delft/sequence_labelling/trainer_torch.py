@@ -10,7 +10,7 @@ written before and after the migration stays readable by `--auto-resume`.
 """
 import logging
 import os
-from typing import Callable, Dict, Optional, Protocol
+from typing import Callable, Dict, NamedTuple, Optional, Protocol
 
 import numpy as np
 import torch
@@ -220,6 +220,56 @@ def get_scorer_from_evaluation(
         with torch.no_grad():
             return evaluate(model)
     return scorer
+
+
+class FoldData(NamedTuple):
+    x_train: T_Batch_Token_Array
+    y_train: T_Batch_Label_Array
+    features_train: Optional[T_Batch_Features_Array]
+    x_valid: Optional[T_Batch_Token_Array]
+    y_valid: Optional[T_Batch_Label_Array]
+    features_valid: Optional[T_Batch_Features_Array]
+
+
+def get_fold_data(
+    fold_id: int,
+    fold_count: int,
+    x_train: T_Batch_Token_Array,
+    y_train: T_Batch_Label_Array,
+    x_valid: Optional[T_Batch_Token_Array] = None,
+    y_valid: Optional[T_Batch_Label_Array] = None,
+    features_train: Optional[T_Batch_Features_Array] = None,
+    features_valid: Optional[T_Batch_Features_Array] = None
+) -> FoldData:
+    """Returns the data one fold trains and validates on.
+
+    A validation set that was passed in is reused for every fold, otherwise
+    each fold holds out its own slice of the training data. The last fold takes
+    the remainder, so no sample is dropped.
+    """
+    if x_valid is not None:
+        return FoldData(
+            x_train, y_train, features_train, x_valid, y_valid, features_valid
+        )
+    fold_size = len(x_train) // fold_count
+    fold_start = fold_size * fold_id
+    fold_end = len(x_train) if fold_id == fold_count - 1 else fold_start + fold_size
+    return FoldData(
+        x_train=np.concatenate([x_train[:fold_start], x_train[fold_end:]]),
+        y_train=np.concatenate([y_train[:fold_start], y_train[fold_end:]]),
+        features_train=(
+            None if features_train is None
+            else np.concatenate(
+                [features_train[:fold_start], features_train[fold_end:]]
+            )
+        ),
+        x_valid=x_train[fold_start:fold_end],
+        y_valid=y_train[fold_start:fold_end],
+        features_valid=(
+            None if features_train is None
+            else features_train[fold_start:fold_end]
+        )
+    )
 
 
 class ModelTrainer:

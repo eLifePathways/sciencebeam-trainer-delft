@@ -8,16 +8,18 @@ The xfail markers are strict: when a fixed delft is released, these tests pass
 unexpectedly and the run fails, which is the signal to drop the marker and the
 version fallback along with it.
 """
-import warnings
 from typing import Any
 
 import pytest
 import torch
+from torch import nn
 from torch.optim import Adam
 
 from delft.sequenceLabelling.config import ModelConfig
 from delft.sequenceLabelling.models import BidLSTM_ChainCRF
 from delft.utilities.crf_pytorch import ChainCRF
+
+from sciencebeam_trainer_delft.sequence_labelling import upstream_patches
 
 
 NTAGS = 5
@@ -29,6 +31,21 @@ CHAIN_CRF_PARAMETER_NAMES = ['U', 'b_start', 'b_end']
 LAZY_CHAIN_CRF_REASON = (
     'delft 1.0.1 ChainCRF creates U/b_start/b_end on the first forward pass'
 )
+
+
+@pytest.fixture(name='unpatched_chain_crf', autouse=True)
+def _unpatched_chain_crf():
+    """Restores upstream's own ChainCRF for the duration of each test.
+
+    `get_model` patches it for the rest of the process, so without this these
+    tests would report on the patch rather than on the installed delft.
+    """
+    patched_init = ChainCRF.__init__
+    ChainCRF.__init__ = (  # type: ignore[method-assign]
+        upstream_patches.ORIGINAL_CHAIN_CRF_INIT
+    )
+    yield
+    ChainCRF.__init__ = patched_init  # type: ignore[method-assign]
 
 
 def _snapshot(tensor: Any) -> torch.Tensor:
@@ -110,10 +127,12 @@ class TestRecurrentDropout:
     def test_should_not_pass_dropout_to_a_single_layer_lstm(
         self, model_config: ModelConfig
     ):
-        with warnings.catch_warnings(record=True) as caught_warnings:
-            warnings.simplefilter('always')
-            BidLSTM_ChainCRF(model_config, NTAGS)
+        # nn.LSTM applies dropout between layers, so a single-layer LSTM
+        # discards it: whatever recurrent_dropout was configured has no effect
+        model = BidLSTM_ChainCRF(model_config, NTAGS)
+        assert model_config.recurrent_dropout
         assert not [
-            warning for warning in caught_warnings
-            if 'num_layers greater than 1' in str(warning.message)
+            name
+            for name, module in model.named_modules()
+            if isinstance(module, nn.LSTM) and module.num_layers == 1 and module.dropout
         ]

@@ -23,6 +23,9 @@ from delft.sequenceLabelling.models import (
 from delft.utilities.crf_pytorch import ChainCRF
 
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig
+from sciencebeam_trainer_delft.sequence_labelling.upstream_patches import (
+    patch_chain_crf_eager_build
+)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -214,6 +217,9 @@ def is_model_stateful(model: nn.Module) -> bool:
 
 def get_model(config: ModelConfig, preprocessor, ntags: Optional[int] = None):
     LOGGER.info('get_model, architecture=%s, ntags=%s', config.architecture, ntags)
+    # the CRF has to register its transition parameters before the model is
+    # constructed, or they are absent from the optimizer and the state dict
+    patch_chain_crf_eager_build()
     model_class = MODEL_MAP.get(config.architecture)
     if not model_class:
         assert ntags is not None, 'ntags required'
