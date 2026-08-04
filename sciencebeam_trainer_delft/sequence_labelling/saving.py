@@ -1,3 +1,18 @@
+"""Reads and writes the on-disk model directory.
+
+The layout is a contract with anything that loads these models, including
+sciencebeam-parser:
+
+    config.json          model configuration, including the architecture name
+    preprocessor.pkl     pickled preprocessor, with the vocabularies
+    preprocessor.json    the same preprocessor, readable without unpickling
+    model_weights.pt     torch state dict
+    meta.json            optional training metadata, read when resuming
+
+Only the weights file changes format with the PyTorch migration; a directory
+written by an earlier release holds `model_weights.hdf5` instead and cannot be
+read here.
+"""
 import logging
 import json
 import os
@@ -7,7 +22,8 @@ from typing import Callable, Dict, Optional
 
 import joblib
 
-from delft.sequenceLabelling.models import Model
+import torch
+from torch import nn
 import delft.sequenceLabelling.preprocess as delft_preprocess
 from delft.sequenceLabelling.preprocess import (
     FeaturesPreprocessor as DelftFeaturesPreprocessor,
@@ -35,7 +51,8 @@ LOGGER = logging.getLogger(__name__)
 
 class _BaseModelSaverLoader(ABC):
     config_file = 'config.json'
-    weight_file = 'model_weights.hdf5'
+    # delft 1.0.x writes a torch state dict under this name
+    weight_file = 'model_weights.pt'
     preprocessor_pickle_file = 'preprocessor.pkl'
     preprocessor_json_file = 'preprocessor.json'
     meta_file = 'meta.json'
@@ -176,9 +193,9 @@ class ModelSaver(_BaseModelSaverLoader):
             model_config.save(fp)
         LOGGER.info('model config file saved to %s', filepath)
 
-    def _save_model(self, model: Model, filepath: str):
+    def _save_model(self, model: nn.Module, filepath: str):
         with auto_upload_from_local_file(filepath) as local_filepath:
-            model.save(local_filepath)
+            torch.save(model.state_dict(), local_filepath)
         LOGGER.info('model saved to %s', filepath)
 
     def _save_meta(self, meta: dict, filepath: str):
@@ -207,7 +224,7 @@ class ModelSaver(_BaseModelSaverLoader):
     def save_to(
         self,
         directory: str,
-        model: Model,
+        model: nn.Module,
         meta: Optional[dict] = None,
         weight_file: Optional[str] = None
     ):
@@ -291,7 +308,7 @@ class ModelLoader(_BaseModelSaverLoader):
     def load_model_from_directory(
         self,
         directory: str,
-        model: Model,
+        model: nn.Module,
         weight_file: Optional[str] = None
     ):
         return self.load_model_from_file(
@@ -299,9 +316,8 @@ class ModelLoader(_BaseModelSaverLoader):
             model=model
         )
 
-    def load_model_from_file(self, filepath: str, model: Model):
+    def load_model_from_file(self, filepath: str, model: nn.Module):
         LOGGER.info('loading model from %s', filepath)
         # we need a seekable file, ensure we download the file first
         local_filepath = self.download_manager.download_if_url(filepath)
-        # using load_weights to avoid print statement in load method
-        model.model.load_weights(local_filepath)
+        model.load_state_dict(torch.load(local_filepath, map_location='cpu'))

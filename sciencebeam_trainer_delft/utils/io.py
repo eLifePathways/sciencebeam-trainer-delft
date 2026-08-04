@@ -141,6 +141,10 @@ def strip_compression_filename_ext(filepath: str) -> str:
     return get_compression_wrapper(filepath).strip_compression_filename_ext(filepath)
 
 
+def _get_text_encoding(mode: str) -> Optional[str]:
+    return 'utf-8' if 'b' not in mode else None
+
+
 @contextmanager
 def _open_raw(filepath: str, mode: str) -> Iterator[IO]:
     if filepath.startswith('https://'):
@@ -148,19 +152,22 @@ def _open_raw(filepath: str, mode: str) -> Iterator[IO]:
             with tempfile.TemporaryDirectory(suffix='download') as temp_dir:
                 temp_file = os.path.join(temp_dir, os.path.basename(filepath))
                 urlretrieve(filepath, temp_file)
-                encoding: Optional[str] = 'utf-8' if 'b' not in mode else None
-                with open(temp_file, mode=mode, encoding=encoding) as fp:
+                with open(temp_file, mode=mode, encoding=_get_text_encoding(mode)) as fp:
                     yield fp
         except HTTPError as error:
             if error.code == 404:
                 raise FileNotFoundError('file not found: %s' % filepath) from error
             raise
-    else:
+    elif is_external_location(filepath):
+        _require_tf_file_io()
         try:
             with tf_file_io.FileIO(filepath, mode=mode) as fp:
                 yield fp
         except tf_NotFoundError as e:
             raise FileNotFoundError('file not found: %s' % filepath) from e
+    else:
+        with open(filepath, mode=mode, encoding=_get_text_encoding(mode)) as fp:
+            yield fp
 
 
 @contextmanager
@@ -179,11 +186,22 @@ def open_file(filepath: str, mode: str, compression_wrapper: Optional[Compressio
                 mode=mode
             )
     elif mode in {'wb', 'w'}:
-        tf_file_io.recursive_create_dir(os.path.dirname(filepath))
+        _create_directory_for(filepath)
         with compression_wrapper.open(filepath, mode=mode) as target_fp:
             yield target_fp
     else:
         raise ValueError('unsupported mode: %s' % mode)
+
+
+def _create_directory_for(filepath: str):
+    directory = os.path.dirname(filepath)
+    if not directory:
+        return
+    if is_external_location(filepath):
+        _require_tf_file_io()
+        tf_file_io.recursive_create_dir(directory)
+        return
+    os.makedirs(directory, exist_ok=True)
 
 
 def _require_tf_file_io():
