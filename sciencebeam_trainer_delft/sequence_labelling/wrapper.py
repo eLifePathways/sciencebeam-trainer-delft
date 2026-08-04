@@ -587,6 +587,7 @@ class Sequence:
             dataset_transformer_factory=self.dataset_transformer_factory,
             max_sequence_length=self.eval_max_sequence_length,
             input_window_stride=self.eval_input_window_stride,
+            device=self.device
         )
         tag_result = tagger.tag(
             list(x_test),
@@ -692,7 +693,8 @@ class Sequence:
             embeddings=self.embeddings,
             dataset_transformer_factory=self.dataset_transformer_factory,
             max_sequence_length=self.max_sequence_length,
-            input_window_stride=self.input_window_stride
+            input_window_stride=self.input_window_stride,
+            device=self.device
         )
         LOGGER.debug('tag_transformed: %s', self.tag_transformed)
         annotations: Union[dict, Iterable[TypingSequence[Tuple[str, str]]]]
@@ -844,4 +846,5 @@ class Sequence:
             model=self.model,
             weight_file=weight_file
         )
+        self.model.to(self.device)
         self.update_dataset_transformer_factor()

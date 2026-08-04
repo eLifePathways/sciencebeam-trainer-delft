@@ -31,6 +31,13 @@ from sciencebeam_trainer_delft.sequence_labelling.upstream_patches import (
 LOGGER = logging.getLogger(__name__)
 
 
+# the CRF has to register its transition parameters when it is constructed,
+# or they are missing from the optimizer and from a fresh model's state dict.
+# applied here rather than in get_model, so that constructing an architecture
+# directly is safe too
+patch_chain_crf_eager_build()
+
+
 class CharacterEncoder(nn.Module):
     """Encodes the characters of each token with a bidirectional LSTM.
 
@@ -217,9 +224,6 @@ def is_model_stateful(model: nn.Module) -> bool:
 
 def get_model(config: ModelConfig, preprocessor, ntags: Optional[int] = None):
     LOGGER.info('get_model, architecture=%s, ntags=%s', config.architecture, ntags)
-    # the CRF has to register its transition parameters before the model is
-    # constructed, or they are absent from the optimizer and the state dict
-    patch_chain_crf_eager_build()
     model_class = MODEL_MAP.get(config.architecture)
     if not model_class:
         assert ntags is not None, 'ntags required'

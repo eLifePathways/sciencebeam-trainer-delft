@@ -4,11 +4,12 @@ from typing import Dict, List, Optional
 
 import pytest
 
-import numpy as np
+import torch
 
 from delft.sequenceLabelling.preprocess import PAD
 
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig
+from sciencebeam_trainer_delft.sequence_labelling.data_loader_torch import CHAR_INPUT
 from sciencebeam_trainer_delft.sequence_labelling.preprocess import (
     WordPreprocessor
 )
@@ -98,44 +99,36 @@ def inverse_char_transform(
     ]
 
 
-def get_prediction_by_tag(vocab_tag: Dict[str, int]):
-    tag_count = len(vocab_tag)
-    return {
-        tag: [
-            1 if i == tag_index else 0
-            for i in range(tag_count)
-        ]
-        for tag, tag_index in vocab_tag.items()
-    }
-
-
-def get_predict_on_batch_by_token_fn(
-    tag_by_token_map: Dict[str, List[float]],
+def get_decode_by_token_fn(
+    tag_by_token_map: Dict[str, str],
     preprocessor: WordPreprocessor,
     batch_size: Optional[int] = None
 ):
+    """Fakes the model, decoding each token to the tag the map gives it.
+
+    The model returns one tag index per token, which is what the CRF's decode
+    produces, so the tokens are recovered from the char input to look up.
+    """
     vocab_tag = preprocessor.vocab_tag
     LOGGER.debug('vocab_tag=%s', vocab_tag)
     char_by_index_map = {i: c for c, i in preprocessor.vocab_char.items()}
-    prediction_by_tag = get_prediction_by_tag(vocab_tag)
-    LOGGER.debug('prediction_by_tag=%s', prediction_by_tag)
 
-    def predict_on_batch(inputs):
-        char_inputs = inputs[1]
+    def decode(inputs):
+        char_inputs = inputs[CHAR_INPUT].numpy()
         inverse_char_inputs = inverse_char_transform(char_inputs, char_by_index_map)
         if batch_size:
             assert len(char_inputs) == batch_size, (
                 "expected batch size: %d, but was %d" % (batch_size, len(char_inputs))
             )
         LOGGER.debug('inverse_char_inputs: %s', inverse_char_inputs)
-        return np.asarray([
+        return torch.tensor([
             [
-                prediction_by_tag[tag_by_token_map[token]]
+                vocab_tag[tag_by_token_map[token]]
                 for token in doc
             ]
             for doc in inverse_char_inputs
         ])
-    return predict_on_batch
+    return decode
 
 
 class TestTagger:
@@ -151,7 +144,7 @@ class TestTagger:
             max_sequence_length=2,
             input_window_stride=None
         )
-        model_mock.predict_on_batch.side_effect = get_predict_on_batch_by_token_fn(
+        model_mock.decode.side_effect = get_decode_by_token_fn(
             DEFAULT_TAG_BY_TOKEN_MAP,
             preprocessor=preprocessor,
             batch_size=model_config.batch_size
@@ -172,7 +165,7 @@ class TestTagger:
             max_sequence_length=2,
             input_window_stride=None
         )
-        model_mock.predict_on_batch.side_effect = get_predict_on_batch_by_token_fn(
+        model_mock.decode.side_effect = get_decode_by_token_fn(
             DEFAULT_TAG_BY_TOKEN_MAP,
             preprocessor=preprocessor,
             batch_size=model_config.batch_size
@@ -200,7 +193,7 @@ class TestTagger:
             max_sequence_length=2,
             input_window_stride=2
         )
-        model_mock.predict_on_batch.side_effect = get_predict_on_batch_by_token_fn(
+        model_mock.decode.side_effect = get_decode_by_token_fn(
             DEFAULT_TAG_BY_TOKEN_MAP,
             preprocessor=preprocessor,
             batch_size=model_config.batch_size
@@ -228,7 +221,7 @@ class TestTagger:
             max_sequence_length=2,
             input_window_stride=1
         )
-        model_mock.predict_on_batch.side_effect = get_predict_on_batch_by_token_fn(
+        model_mock.decode.side_effect = get_decode_by_token_fn(
             DEFAULT_TAG_BY_TOKEN_MAP,
             preprocessor=preprocessor,
             batch_size=model_config.batch_size
@@ -256,7 +249,7 @@ class TestTagger:
             max_sequence_length=None,
             input_window_stride=None
         )
-        model_mock.predict_on_batch.side_effect = get_predict_on_batch_by_token_fn(
+        model_mock.decode.side_effect = get_decode_by_token_fn(
             DEFAULT_TAG_BY_TOKEN_MAP,
             preprocessor=preprocessor,
             batch_size=model_config.batch_size
@@ -284,7 +277,7 @@ class TestTagger:
             max_sequence_length=2,
             input_window_stride=2
         )
-        model_mock.predict_on_batch.side_effect = get_predict_on_batch_by_token_fn(
+        model_mock.decode.side_effect = get_decode_by_token_fn(
             DEFAULT_TAG_BY_TOKEN_MAP,
             preprocessor=preprocessor,
             batch_size=model_config.batch_size
@@ -316,7 +309,7 @@ class TestTagger:
             max_sequence_length=2,
             input_window_stride=2
         )
-        model_mock.predict_on_batch.side_effect = get_predict_on_batch_by_token_fn(
+        model_mock.decode.side_effect = get_decode_by_token_fn(
             DEFAULT_TAG_BY_TOKEN_MAP,
             preprocessor=preprocessor,
             batch_size=model_config.batch_size
@@ -347,7 +340,7 @@ class TestTagger:
                 UnrollingTextFeatureDatasetTransformer(0)
             )
         )
-        model_mock.predict_on_batch.side_effect = get_predict_on_batch_by_token_fn(
+        model_mock.decode.side_effect = get_decode_by_token_fn(
             DEFAULT_TAG_BY_TOKEN_MAP,
             preprocessor=preprocessor,
             batch_size=model_config.batch_size

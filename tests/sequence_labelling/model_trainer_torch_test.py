@@ -5,16 +5,11 @@ from typing import Optional
 import numpy as np
 import pytest
 
-from delft.utilities.crf_pytorch import ChainCRF
-
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig, TrainingConfig
 from sciencebeam_trainer_delft.sequence_labelling.models import CustomBidLSTM_CRF
 from sciencebeam_trainer_delft.sequence_labelling.preprocess import Preprocessor
 from sciencebeam_trainer_delft.sequence_labelling.saving import ModelSaver
 from sciencebeam_trainer_delft.sequence_labelling.trainer_torch import ModelTrainer
-from sciencebeam_trainer_delft.sequence_labelling.upstream_patches import (
-    patch_chain_crf_eager_build
-)
 
 
 TOKENS_1 = ['One', 'Two', 'Three']
@@ -22,14 +17,6 @@ TOKENS_2 = ['Four', 'Five', 'Six']
 
 TAGS_1 = ['B-<title>', 'I-<title>', 'B-<author>']
 TAGS_2 = ['B-<author>', 'I-<author>', 'B-<title>']
-
-
-@pytest.fixture(name='patched_chain_crf', autouse=True)
-def _patched_chain_crf():
-    original_init = ChainCRF.__init__
-    patch_chain_crf_eager_build()
-    yield
-    ChainCRF.__init__ = original_init  # type: ignore[method-assign]
 
 
 @pytest.fixture(name='x')

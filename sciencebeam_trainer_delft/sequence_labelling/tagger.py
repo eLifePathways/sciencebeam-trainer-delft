@@ -1,3 +1,10 @@
+"""Turns documents into tagged tokens.
+
+The model decodes each batch to one tag index per token, so predictions are
+the CRF's best path rather than the best tag at each position independently.
+Long documents are predicted in overlapping windows and stitched back
+together here.
+"""
 import datetime
 import logging
 from typing import Iterable, List, Optional, Sequence, Tuple, Union
@@ -12,6 +19,10 @@ from sciencebeam_trainer_delft.utils.progress_logger import logging_tqdm
 
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig
 from sciencebeam_trainer_delft.sequence_labelling.data_generator import DataGenerator
+from sciencebeam_trainer_delft.sequence_labelling.data_loader_torch import (
+    get_input_names,
+    to_model_inputs
+)
 
 from sciencebeam_trainer_delft.sequence_labelling.dataset_transform import (
     T_DatasetTransformerFactory,
@@ -38,7 +49,8 @@ def iter_predict_texts_with_sliding_window_if_enabled(
     model,
     input_window_stride: Optional[int] = None,
     embeddings: Optional[Embeddings] = None,
-    features: Optional[List[List[List[str]]]] = None
+    features: Optional[List[List[List[str]]]] = None,
+    device: Optional[str] = None
 ):
     if not texts:
         LOGGER.info('passed in empty texts, model: %s', model_config.model_name)
@@ -100,6 +112,8 @@ def iter_predict_texts_with_sliding_window_if_enabled(
         name='%s.predict_generator' % model_config.model_name
     )
 
+    model.eval()
+    input_names = get_input_names(predict_generator)
     prediction_list_list: List[List[np.ndarray]] = [[] for _ in texts]
     batch_window_indices_and_offsets_iterable = logging_tqdm(
         iter_batch_window_indices_and_offsets(
@@ -120,7 +134,11 @@ def iter_predict_texts_with_sliding_window_if_enabled(
             batch_window_indices_and_offsets
         )
         LOGGER.debug('predict on batch: %d', len(batch_window_indices_and_offsets))
-        batch_predictions = model.predict_on_batch(generator_output[0])
+        batch_predictions = np.asarray(
+            model.decode(
+                to_model_inputs(input_names, generator_output[0], device=device)
+            ).cpu()
+        )
         LOGGER.debug('preds.shape: %s', batch_predictions.shape)
         for window_indices_and_offsets, seq_predictions in zip(
             batch_window_indices_and_offsets, batch_predictions
@@ -166,7 +184,8 @@ class Tagger:
         embeddings: Optional[Embeddings] = None,
         dataset_transformer_factory: Optional[T_DatasetTransformerFactory] = None,
         max_sequence_length: Optional[int] = None,
-        input_window_stride: Optional[int] = None
+        input_window_stride: Optional[int] = None,
+        device: Optional[str] = None
     ):
         self.model = model
         self.preprocessor = preprocessor
@@ -174,6 +193,7 @@ class Tagger:
         self.embeddings = embeddings
         self.max_sequence_length = max_sequence_length
         self.input_window_stride = input_window_stride
+        self.device = device
         if dataset_transformer_factory is None:
             self.dataset_transformer_factory: T_DatasetTransformerFactory = (
                 DummyDatasetTransformer
@@ -204,7 +224,8 @@ class Tagger:
             preprocessor=self.preprocessor,
             max_sequence_length=self.max_sequence_length,
             input_window_stride=self.input_window_stride,
-            embeddings=self.embeddings
+            embeddings=self.embeddings,
+            device=self.device
         )
         for i, pred_item in enumerate(preds_concatenated_iterable):
             LOGGER.debug('pred_item.shape: %s', pred_item.shape)
@@ -225,14 +246,13 @@ class Tagger:
 
             LOGGER.debug('tokens: %s', tokens)
 
-            is_sparse = self.model_config.use_crf and not self.model_config.use_chain_crf
-            tags = self._get_tags(pred, is_sparse=is_sparse)
+            tags = self._get_tags(pred)
             if not tag_transformed:
                 tags = dataset_transformer.inverse_transform_y([tags])[0]
             LOGGER.debug('tags: %s', tags)
 
             if output_format == 'json':
-                prob = self._get_prob(pred, is_sparse=is_sparse)
+                prob = self._get_prob(pred)
                 piece = {}
                 piece["text"] = text
                 piece["entities"] = self._build_json_response(
@@ -251,37 +271,18 @@ class Tagger:
             return {
                 "software": "ScienceBeam Trainer DeLFT",
                 "date": datetime.datetime.now().isoformat(),
-                "model": self.model.config.model_name,
+                "model": self.model_config.model_name,
                 "texts": result
             }
         else:
             return result  # type: ignore
 
-    def _get_tags_dense(self, pred):
-        pred = np.argmax(pred, -1)
-        tags = self.preprocessor.inverse_transform(pred[0])
-        return tags
+    def _get_tags(self, pred):
+        return self.preprocessor.inverse_transform(pred[0])
 
-    def _get_tags_sparse(self, pred):
-        tags = self.preprocessor.inverse_transform(pred[0])
-        return tags
-
-    def _get_tags(self, pred, is_sparse: bool = False):
-        if is_sparse:
-            return self._get_tags_sparse(pred)
-        return self._get_tags_dense(pred)
-
-    def _get_prob_dense(self, pred):
-        prob = np.max(pred, -1)[0]
-        return prob
-
-    def _get_prob_sparse(self, pred):
+    def _get_prob(self, pred):
+        # a decoded path has no per-token probability to report
         return [1.0] * len(pred[0])
-
-    def _get_prob(self, pred, is_sparse: bool = False):
-        if is_sparse:
-            return self._get_prob_sparse(pred)
-        return self._get_prob_dense(pred)
 
     def _build_json_response(self, tokens, tags, prob, offsets):
         res = {

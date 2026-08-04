@@ -1,8 +1,6 @@
 import pytest
 import torch
 
-from delft.utilities.crf_pytorch import ChainCRF
-
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig
 from sciencebeam_trainer_delft.sequence_labelling.models import CustomBidLSTM_CRF
 from sciencebeam_trainer_delft.sequence_labelling.transfer_learning import (
@@ -10,9 +8,6 @@ from sciencebeam_trainer_delft.sequence_labelling.transfer_learning import (
     TransferLearningSource,
     TransferModelWrapper,
     freeze_model_layers
-)
-from sciencebeam_trainer_delft.sequence_labelling.upstream_patches import (
-    patch_chain_crf_eager_build
 )
 
 
@@ -24,14 +19,6 @@ WORD_EMBEDDING_SIZE = 3
 
 WORD_LSTM_LAYER = 'word_lstm'
 CHAR_EMBEDDINGS_LAYER = 'char_encoder.char_embeddings'
-
-
-@pytest.fixture(name='patched_chain_crf', autouse=True)
-def _patched_chain_crf():
-    original_init = ChainCRF.__init__
-    patch_chain_crf_eager_build()
-    yield
-    ChainCRF.__init__ = original_init  # type: ignore[method-assign]
 
 
 def _model_config() -> ModelConfig:

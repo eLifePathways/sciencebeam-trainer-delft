@@ -9,6 +9,7 @@ from delft.sequenceLabelling.models import BidLSTM_ChainCRF
 from delft.utilities.crf_pytorch import ChainCRF
 
 from sciencebeam_trainer_delft.sequence_labelling.upstream_patches import (
+    ORIGINAL_CHAIN_CRF_INIT,
     is_chain_crf_eager_build_required,
     patch_chain_crf_eager_build
 )
@@ -28,9 +29,16 @@ def _snapshot(tensor: Any) -> torch.Tensor:
 
 @pytest.fixture(name='restore_chain_crf', autouse=True)
 def _restore_chain_crf() -> Iterator[None]:
-    original_init = ChainCRF.__init__
+    """Starts each test from upstream's own ChainCRF.
+
+    Importing the models module patches it for the rest of the process, and
+    these tests are about what the patch changes, so they have to begin from
+    the unpatched behaviour.
+    """
+    patched_init = ChainCRF.__init__
+    ChainCRF.__init__ = ORIGINAL_CHAIN_CRF_INIT  # type: ignore[method-assign]
     yield
-    ChainCRF.__init__ = original_init  # type: ignore[method-assign]
+    ChainCRF.__init__ = patched_init  # type: ignore[method-assign]
 
 
 @pytest.fixture(name='model_config')

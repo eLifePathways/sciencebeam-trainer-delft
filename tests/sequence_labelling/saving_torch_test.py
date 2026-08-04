@@ -4,14 +4,9 @@ from typing import Any, cast
 import pytest
 import torch
 
-from delft.utilities.crf_pytorch import ChainCRF
-
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig
 from sciencebeam_trainer_delft.sequence_labelling.models import CustomBidLSTM_CRF
 from sciencebeam_trainer_delft.sequence_labelling.saving import ModelLoader, ModelSaver
-from sciencebeam_trainer_delft.sequence_labelling.upstream_patches import (
-    patch_chain_crf_eager_build
-)
 from sciencebeam_trainer_delft.utils.download_manager import DownloadManager
 
 
@@ -20,14 +15,6 @@ CHAR_VOCAB_SIZE = 12
 MAX_CHAR_LENGTH = 5
 MAX_FEATURE_SIZE = 7
 WORD_EMBEDDING_SIZE = 3
-
-
-@pytest.fixture(name='patched_chain_crf', autouse=True)
-def _patched_chain_crf():
-    original_init = ChainCRF.__init__
-    patch_chain_crf_eager_build()
-    yield
-    ChainCRF.__init__ = original_init  # type: ignore[method-assign]
 
 
 @pytest.fixture(name='model_config')

@@ -58,6 +58,25 @@ def to_label_tensor(labels: np.ndarray) -> torch.Tensor:
     return torch.as_tensor(label_array, dtype=torch.long)
 
 
+def to_model_inputs(
+    input_names: List[str],
+    arrays: List[np.ndarray],
+    device: Optional[str] = None
+) -> Dict[str, torch.Tensor]:
+    """Names and converts the arrays of one batch."""
+    if len(arrays) != len(input_names):
+        raise AssertionError(
+            f'expected {len(input_names)} inputs {input_names}, got {len(arrays)}'
+        )
+    inputs = {
+        name: to_input_tensor(name, array)
+        for name, array in zip(input_names, arrays)
+    }
+    if device:
+        inputs = {name: value.to(device) for name, value in inputs.items()}
+    return inputs
+
+
 class DataLoader:
     """Yields `(inputs, labels)` for each batch of a data generator."""
 
@@ -73,20 +92,10 @@ class DataLoader:
         self, index: int
     ) -> Tuple[Dict[str, torch.Tensor], Optional[torch.Tensor]]:
         arrays, labels = self.data_generator[index]
-        if len(arrays) != len(self.input_names):
-            raise AssertionError(
-                f'expected {len(self.input_names)} inputs {self.input_names},'
-                f' got {len(arrays)}'
-            )
-        inputs = {
-            name: to_input_tensor(name, array)
-            for name, array in zip(self.input_names, arrays)
-        }
+        inputs = to_model_inputs(self.input_names, arrays, device=self.device)
         label_tensor = None if labels is None else to_label_tensor(labels)
-        if self.device:
-            inputs = {name: value.to(self.device) for name, value in inputs.items()}
-            if label_tensor is not None:
-                label_tensor = label_tensor.to(self.device)
+        if self.device and label_tensor is not None:
+            label_tensor = label_tensor.to(self.device)
         return inputs, label_tensor
 
     def __iter__(
