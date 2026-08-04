@@ -5,8 +5,6 @@ from typing import Iterator
 
 import pytest
 
-import tensorflow as tf
-
 
 LOGGER = logging.getLogger(__name__)
 
@@ -35,14 +33,6 @@ def patch_magicmock():
 def temp_dir(tmp_path: Path) -> Path:
     # no longer need to convert to standard Path (remove this fixture)
     return tmp_path
-
-
-@pytest.fixture(scope='session', autouse=True)
-def tf_eager_mode():
-    try:
-        tf.compat.v1.enable_eager_execution()
-    except (ValueError, AttributeError) as e:
-        LOGGER.debug('failed to switch to eager mode due to %s', e)
 
 
 @pytest.fixture
