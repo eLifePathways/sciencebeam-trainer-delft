@@ -265,12 +265,23 @@ def classification_report(
     )
 
 
+def to_index_list(sequence_indices) -> List[int]:
+    """Returns plain ints, whether the sequence is a tensor, an array or a list.
+
+    The tag lookup is a dict keyed by int, which a zero-dimensional tensor does
+    not match.
+    """
+    if hasattr(sequence_indices, 'tolist'):
+        return sequence_indices.tolist()
+    return [int(index) for index in sequence_indices]
+
+
 def iter_tag_sequences(
     label_indices, preprocessor
 ):
     """Turns per-token label indices back into tag names, one list per sequence."""
     for sequence_indices in label_indices:
-        yield list(preprocessor.inverse_transform(list(sequence_indices)))
+        yield list(preprocessor.inverse_transform(to_index_list(sequence_indices)))
 
 
 def get_classification_result_for_model(
