@@ -17,7 +17,11 @@ tf = [
     "nvidia-cuda-nvcc-cu12>=12.3.107; sys_platform == 'linux'",
 ]
 delft = [
-    "delft>=0.4.3",
+    "delft>=1.0.1",
+    # declared directly so [tool.uv.sources] applies: uv sources are not
+    # honoured for a transitive requirement, so relying on delft's own
+    # `torch==2.11.0` resolves the CUDA wheel from PyPI instead
+    "torch==2.11.0",
 ]
 
 [dependency-groups]
@@ -30,6 +34,14 @@ dev = [
     "types-pyyaml>=6.0.12.20250915",
     "types-requests>=2.27.5",
 ]
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
 [tool.setuptools.package-data]
 sciencebeam_trainer_delft = ["py.typed"]
 
