@@ -10,7 +10,7 @@ from sciencebeam_trainer_delft.sequence_labelling.data_loader_torch import (
     DataLoader,
     get_input_names
 )
-from sciencebeam_trainer_delft.sequence_labelling.models_torch import CustomBidLSTM_CRF
+from sciencebeam_trainer_delft.sequence_labelling.models import CustomBidLSTM_CRF
 
 
 BATCH_SIZE = 2

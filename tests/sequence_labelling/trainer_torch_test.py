@@ -8,7 +8,7 @@ import torch
 from delft.utilities.crf_pytorch import ChainCRF
 
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig, TrainingConfig
-from sciencebeam_trainer_delft.sequence_labelling.models_torch import CustomBidLSTM_CRF
+from sciencebeam_trainer_delft.sequence_labelling.models import CustomBidLSTM_CRF
 from sciencebeam_trainer_delft.sequence_labelling.trainer_torch import (
     EarlyStopping,
     MetaKeys,

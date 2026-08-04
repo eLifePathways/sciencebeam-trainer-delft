@@ -7,7 +7,7 @@ import torch
 from delft.utilities.crf_pytorch import ChainCRF
 
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig
-from sciencebeam_trainer_delft.sequence_labelling.models_torch import CustomBidLSTM_CRF
+from sciencebeam_trainer_delft.sequence_labelling.models import CustomBidLSTM_CRF
 from sciencebeam_trainer_delft.sequence_labelling.saving import ModelLoader, ModelSaver
 from sciencebeam_trainer_delft.sequence_labelling.upstream_patches import (
     patch_chain_crf_eager_build
