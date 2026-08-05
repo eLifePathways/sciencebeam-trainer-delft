@@ -854,7 +854,7 @@ python -m sciencebeam_trainer_delft.sequence_labelling.tools.checkpoints \
     "loss": 40.520591011530236,
     "f1": 0.5877923107411811,
     "optimizer": {
-      "type": "keras.optimizers.Adam",
+      "type": "torch.optim.adam.Adam",
       "lr": 0.0010000000474974513
     },
     "epoch": 39,
@@ -866,7 +866,7 @@ python -m sciencebeam_trainer_delft.sequence_labelling.tools.checkpoints \
     "loss": 44.48661111276361,
     "f1": 0.5899450117831894,
     "optimizer": {
-      "type": "keras.optimizers.Adam",
+      "type": "torch.optim.adam.Adam",
       "lr": 0.0010000000474974513
     },
     "epoch": 36,
@@ -878,7 +878,7 @@ python -m sciencebeam_trainer_delft.sequence_labelling.tools.checkpoints \
     "loss": 47.80826501711393,
     "f1": 0.591387179996031,
     "optimizer": {
-      "type": "keras.optimizers.Adam",
+      "type": "torch.optim.adam.Adam",
       "lr": 0.0010000000474974513
     },
     "epoch": 34,

@@ -10,6 +10,10 @@ from sciencebeam_trainer_delft.sequence_labelling.models import CustomBidLSTM_CR
 from sciencebeam_trainer_delft.sequence_labelling.wrapper import get_vocab_size
 from sciencebeam_trainer_delft.sequence_labelling.preprocess import Preprocessor
 from sciencebeam_trainer_delft.sequence_labelling.saving import ModelSaver
+from sciencebeam_trainer_delft.sequence_labelling.tools.checkpoints import (
+    get_checkpoint_meta_map_sorted_by_f1,
+    get_checkpoint_summary_list
+)
 from sciencebeam_trainer_delft.sequence_labelling.trainer_torch import ModelTrainer
 
 
@@ -230,3 +234,53 @@ class TestModelTrainerCheckpoints:
         assert sorted(
             path.name for path in temp_dir.iterdir() if path.is_dir()
         ) == ['epoch-00002', 'epoch-00004']
+
+
+class TestCheckpointMetaIsUsableByTheCheckpointsTool:
+    def test_should_record_this_epochs_own_score_and_loss(
+        self, model_config: ModelConfig, preprocessor: Preprocessor,
+        x: np.ndarray, y: np.ndarray, temp_dir: Path
+    ):
+        model_saver = ModelSaver(preprocessor=preprocessor, model_config=model_config)
+        model_trainer = _model_trainer(
+            model_config, preprocessor,
+            _training_config(max_epoch=2, early_stop=True),
+            checkpoint_path=str(temp_dir), model_saver=model_saver
+        )
+        model_trainer.train(x, y, x, y)
+        # the checkpoints tool sorts on f1 to find the best epoch, so the
+        # running early-stopping best cannot stand in for it
+        for epoch_directory in sorted(temp_dir.glob('epoch-*')):
+            meta = json.loads((epoch_directory / 'meta.json').read_text())
+            assert meta['f1'] is not None
+            assert meta['loss'] is not None
+
+    def test_should_let_the_checkpoints_tool_identify_one_best_epoch(
+        self, model_config: ModelConfig, preprocessor: Preprocessor,
+        x: np.ndarray, y: np.ndarray, temp_dir: Path, monkeypatch
+    ):
+        model_saver = ModelSaver(preprocessor=preprocessor, model_config=model_config)
+        scores = iter([0.1, 0.9, 0.5])
+        model_trainer = _model_trainer(
+            model_config, preprocessor,
+            _training_config(max_epoch=3, early_stop=True),
+            checkpoint_path=str(temp_dir), model_saver=model_saver
+        )
+        # a scorer with known, differing values, so one epoch is clearly best
+        monkeypatch.setattr(
+            model_trainer, 'get_scorer',
+            lambda validation_data_loader: (lambda model: next(scores))
+        )
+        model_trainer.train(x, y, x, y)
+
+        checkpoint_meta_map = {
+            str(path): json.loads((path / 'meta.json').read_text())
+            for path in sorted(temp_dir.glob('epoch-*'))
+        }
+        sorted_by_f1 = get_checkpoint_meta_map_sorted_by_f1(checkpoint_meta_map)
+        summaries = get_checkpoint_summary_list(
+            sorted_by_f1, last_checkpoint={}, limit=3
+        )
+        best = [summary for summary in summaries if summary['is_best']]
+        assert len(best) == 1
+        assert best[0]['f1'] == 0.9

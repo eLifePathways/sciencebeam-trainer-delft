@@ -156,9 +156,22 @@ class Trainer:
             'lr': float(self.optimizer.param_groups[0]['lr'])
         }
 
-    def get_meta(self, epoch: int) -> dict:
+    def get_meta(
+        self,
+        epoch: int,
+        loss: Optional[float] = None,
+        score: Optional[float] = None
+    ) -> dict:
+        """Returns the metadata stored beside a checkpoint.
+
+        `loss` and `f1` are this epoch's own values, which is what the
+        checkpoints tool sorts on to find the best one. `early_stopping.best`
+        is the running maximum and cannot identify an epoch.
+        """
         return {
             'epoch': epoch,
+            'loss': loss,
+            'f1': score,
             'optimizer': self.get_optimizer_meta(),
             **self.early_stopping.get_meta()
         }
@@ -220,7 +233,10 @@ class Trainer:
             )
             if self.should_save_checkpoint(epoch):
                 assert self.save_checkpoint is not None
-                self.save_checkpoint(epoch=epoch, meta=self.get_meta(epoch))
+                self.save_checkpoint(
+                    epoch=epoch,
+                    meta=self.get_meta(epoch, loss=loss, score=score)
+                )
             if should_stop:
                 break
         return history
