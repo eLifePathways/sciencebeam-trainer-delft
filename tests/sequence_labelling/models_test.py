@@ -350,3 +350,23 @@ class TestGetModelForUpstreamArchitecture:
         assert preprocessor.return_features is True
         assert model_config.use_crf is True
         assert model_config.use_chain_crf is False
+
+
+class TestDeprecatedArchitecture:
+    def test_should_declare_the_features_architecture_deprecated(self):
+        assert CustomBidLSTM_CRF_FEATURES.deprecated_reason
+
+    def test_should_not_declare_the_published_architecture_deprecated(self):
+        assert getattr(CustomBidLSTM_CRF, 'deprecated_reason', None) is None
+
+    def test_should_warn_when_building_a_deprecated_architecture(self, caplog):
+        with caplog.at_level('WARNING'):
+            get_model(
+                _features_model_config(), MagicMock(name='preprocessor'), ntags=NTAGS
+            )
+        assert 'deprecated' in caplog.text
+
+    def test_should_not_warn_when_building_a_current_architecture(self, caplog):
+        with caplog.at_level('WARNING'):
+            get_model(_model_config(), MagicMock(name='preprocessor'), ntags=NTAGS)
+        assert 'deprecated' not in caplog.text

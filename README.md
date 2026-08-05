@@ -141,9 +141,9 @@ Layout features are additional features provided with each token, e.g. whether i
 
 The model needs to support using such features. The following models do:
 
-- `BidLSTM_CRF_FEATURES`
 - `CustomBidLSTM_CRF`
-- `CustomBidLSTM_CRF_FEATURES`
+- `BidLSTM_CRF_FEATURES`
+- `CustomBidLSTM_CRF_FEATURES` (deprecated, use `CustomBidLSTM_CRF`)
 
 The features are generally provided. Some of the features are not suitable as input features because there are too many of them (e.g. a variation of the token itself). The features should be specified via `--features-indices`. The `input_info` sub command can help identify useful feature ranges (based on the count of unique values).
 

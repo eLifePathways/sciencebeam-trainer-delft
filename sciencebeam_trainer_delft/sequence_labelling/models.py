@@ -184,6 +184,9 @@ class CustomBidLSTM_CRF_FEATURES(nn.Module):  # pylint: disable=invalid-name
     Each feature value is an index into one shared embedding, which a
     bidirectional LSTM reduces to one vector per token. Unlike
     `CustomBidLSTM_CRF` this uses the plain CRF, as the Keras model did.
+
+    Deprecated: `CustomBidLSTM_CRF` takes features too, and is what every
+    published model uses.
     """
 
     name = 'CustomBidLSTM_CRF_FEATURES'
@@ -191,6 +194,10 @@ class CustomBidLSTM_CRF_FEATURES(nn.Module):  # pylint: disable=invalid-name
     use_chain_crf = False
     supports_features = True
     require_features_indices_input = True
+    deprecated_reason = (
+        'CustomBidLSTM_CRF supports features as well and is what every'
+        ' published model uses'
+    )
 
     def __init__(self, config: ModelConfig, ntags: int):
         super().__init__()
@@ -356,6 +363,11 @@ def get_model(config: ModelConfig, preprocessor, ntags: Optional[int] = None):
     else:
         assert ntags is not None, 'ntags required'
         model = _get_model(config, ntags)
+    deprecated_reason = getattr(model, 'deprecated_reason', None)
+    if deprecated_reason:
+        LOGGER.warning(
+            'architecture %r is deprecated: %s', config.architecture, deprecated_reason
+        )
     # the data generator is configured from these, so an architecture built
     # upstream has to go through them too
     config.use_crf = model.use_crf
