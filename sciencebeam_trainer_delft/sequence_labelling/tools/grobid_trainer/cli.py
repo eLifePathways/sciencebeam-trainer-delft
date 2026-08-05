@@ -154,6 +154,7 @@ class GrobidTrainerSubCommand(SubCommand):
             batch_size=args.batch_size,
             max_sequence_length=args.max_sequence_length,
             multiprocessing=args.multiprocessing,
+            device=args.device,
             embedding_manager=self.embedding_manager,
             download_manager=self.download_manager
         )

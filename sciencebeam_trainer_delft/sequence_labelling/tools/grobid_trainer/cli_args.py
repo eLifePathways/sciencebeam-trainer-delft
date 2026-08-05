@@ -127,6 +127,8 @@ def add_common_arguments(
 
     parser.add_argument("--job-dir", help="job dir (only used when running via ai platform)")
 
+    add_device_argument(parser)
+
 
 def add_model_path_argument(parser: argparse.ArgumentParser, **kwargs):
     parser.add_argument("--model-path", **kwargs)
@@ -297,6 +299,16 @@ def add_require_gpu_argument(parser: argparse.ArgumentParser):
         "--require-gpu",
         action="store_true",
         help="Fail training immediately if no GPU device is available"
+    )
+
+
+def add_device_argument(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "--device",
+        help=(
+            "the torch device to run on, e.g. 'cpu' or 'cuda'"
+            " (default: cuda when available, otherwise cpu)"
+        )
     )
 
 

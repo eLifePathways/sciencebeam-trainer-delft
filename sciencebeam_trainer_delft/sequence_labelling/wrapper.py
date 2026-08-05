@@ -25,6 +25,7 @@ from sciencebeam_trainer_delft.sequence_labelling.typing import (
     T_Batch_Token_Array
 )
 from sciencebeam_trainer_delft.utils.typing import T
+from sciencebeam_trainer_delft.utils.device import get_default_device
 from sciencebeam_trainer_delft.utils.download_manager import DownloadManager
 from sciencebeam_trainer_delft.utils.numpy import concatenate_or_none
 from sciencebeam_trainer_delft.utils.misc import str_to_bool
@@ -92,8 +93,6 @@ DEFAUT_MODEL_PATH = 'data/models/sequenceLabelling/'
 
 DEFAUT_BATCH_SIZE = 10
 
-DEFAULT_DEVICE = 'cpu'
-
 
 class EnvironmentVariables:
     # environment variables are mainly intended for GROBID, as we can't pass in arguments
@@ -101,6 +100,7 @@ class EnvironmentVariables:
     INPUT_WINDOW_STRIDE = 'SCIENCEBEAM_DELFT_INPUT_WINDOW_STRIDE'
     BATCH_SIZE = 'SCIENCEBEAM_DELFT_BATCH_SIZE'
     STATEFUL = 'SCIENCEBEAM_DELFT_STATEFUL'
+    DEVICE = 'SCIENCEBEAM_DELFT_DEVICE'
 
 
 def get_typed_env(
@@ -124,6 +124,17 @@ def get_default_input_window_stride() -> Optional[int]:
 
 def get_default_batch_size() -> Optional[int]:
     return get_typed_env(EnvironmentVariables.BATCH_SIZE, int, default_value=DEFAUT_BATCH_SIZE)
+
+
+def get_default_device_or_env() -> str:
+    """Returns the device to run on, preferring a GPU when there is one.
+
+    A CPU-only install is the default install, but a run on a machine that has
+    a GPU should use it without being asked to.
+    """
+    return get_typed_env(
+        EnvironmentVariables.DEVICE, str, default_value=get_default_device()
+    ) or get_default_device()
 
 
 def get_default_stateful() -> Optional[bool]:
@@ -257,7 +268,7 @@ class Sequence:
         stateful: Optional[bool] = None,
         transfer_learning_config: Optional[TransferLearningConfig] = None,
         tag_transformed: bool = False,
-        device: str = DEFAULT_DEVICE
+        device: Optional[str] = None
     ):
         # initialise logging if not already initialised
         logging.basicConfig(level='INFO')
@@ -291,7 +302,7 @@ class Sequence:
         self.eval_batch_size = eval_batch_size
         self.model_path: Optional[str] = None
         self.log_dir = log_dir
-        self.device = device
+        self.device = device or get_default_device_or_env()
         if stateful is None:
             # use a stateful model, if supported
             stateful = get_default_stateful()

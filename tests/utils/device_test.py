@@ -83,3 +83,23 @@ class TestGetDeviceInfo:
 
     def test_should_report_gpu_device_names(self):
         assert isinstance(get_device_info()['gpu_device_names'], list)
+
+
+class TestWrapperDeviceDefault:
+    def test_should_default_to_the_detected_device(self):
+        from sciencebeam_trainer_delft.sequence_labelling.wrapper import (  # noqa: E501 pylint: disable=import-outside-toplevel
+            get_default_device_or_env
+        )
+        with patch.object(device_module.torch.cuda, 'is_available', return_value=True):
+            assert get_default_device_or_env() == CUDA_DEVICE
+        with patch.object(device_module.torch.cuda, 'is_available', return_value=False):
+            assert get_default_device_or_env() == CPU_DEVICE
+
+    def test_should_let_the_environment_override_the_detected_device(self, monkeypatch):
+        from sciencebeam_trainer_delft.sequence_labelling.wrapper import (  # noqa: E501 pylint: disable=import-outside-toplevel
+            EnvironmentVariables,
+            get_default_device_or_env
+        )
+        monkeypatch.setenv(EnvironmentVariables.DEVICE, CPU_DEVICE)
+        with patch.object(device_module.torch.cuda, 'is_available', return_value=True):
+            assert get_default_device_or_env() == CPU_DEVICE
