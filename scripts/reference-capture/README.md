@@ -11,7 +11,7 @@ afterwards, check out a commit that still depends on TensorFlow and re-run.
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-uv sync --all-extras --all-groups --frozen
+uv sync --extra delft --extra gcs --extra cpu --all-groups --frozen
 ```
 
 ## Per-token capture

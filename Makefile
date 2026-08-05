@@ -8,10 +8,10 @@ PIP = $(UV) pip
 
 PYTHON = PATH=$(VENV)/bin:$$PATH $(VENV)/bin/python
 
-# torch resolves from the CPU index by default, so a CUDA build is installed
-# over it explicitly; the version is read from pyproject to stay in step
-TORCH_VERSION = $(shell grep -oP 'torch==\K[0-9.]+' pyproject.toml | head -1)
-TORCH_CUDA_INDEX_URL = https://download.pytorch.org/whl/cu130
+# the cpu and gpu extras conflict, so --all-extras is not usable and the
+# extras are named; TORCH_EXTRA selects which torch wheel to install
+TORCH_EXTRA = cpu
+UV_SYNC_EXTRAS = --extra delft --extra gcs --extra $(TORCH_EXTRA)
 
 BATCH_SIZE = 10
 MAX_EPOCH = 1
@@ -81,22 +81,18 @@ venv-create:
 
 
 dev-install:
-	$(UV) sync --active --frozen --all-extras --all-groups
+	$(UV) sync --active --frozen $(UV_SYNC_EXTRAS) --all-groups
 
 
-dev-install-gpu-torch:
-	$(UV) pip install --reinstall \
-		--index-url $(TORCH_CUDA_INDEX_URL) \
-		torch==$(TORCH_VERSION)
+dev-install-gpu:
+	$(MAKE) dev-install TORCH_EXTRA=gpu
 	$(PYTHON) -c "import torch; print('torch', torch.__version__, 'cuda', torch.cuda.is_available())"
 
 
 dev-venv: venv-create dev-install
 
 
-# note: a later `uv sync` reinstalls the CPU build, since that is what the
-# lockfile pins; re-run dev-install-gpu-torch after one
-dev-venv-gpu: dev-venv dev-install-gpu-torch
+dev-venv-gpu: venv-create dev-install-gpu
 
 
 dev-flake8:
