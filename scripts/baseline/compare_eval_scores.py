@@ -56,9 +56,12 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     print('%-24s %9s %9s %9s' % ('field', 'baseline', 'candidate', 'delta'))
     print('-' * 56)
-    for field, baseline_f1, candidate_f1, baseline_support, _ in iter_field_rows(
+    for field, baseline_f1, candidate_f1, baseline_support, candidate_support in iter_field_rows(
         baseline_scores, candidate_scores
     ):
+        if not baseline_support and not candidate_support:
+            # no entities of this type in either run, so nothing to compare
+            continue
         if baseline_f1 is None or candidate_f1 is None:
             print('%-24s %9s %9s %9s  MISSING' % (
                 field, format_value(baseline_f1), format_value(candidate_f1), '-'

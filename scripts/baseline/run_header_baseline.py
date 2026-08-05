@@ -204,6 +204,7 @@ def run_training(
         'epochs_run': len(epochs),
         'stopped_epoch': epochs[-1]['epoch'] if epochs else None,
         'best_epoch': get_best_epoch(epochs),
+        'max_epoch': max_epoch,
         'seconds_per_epoch': get_seconds_per_epoch(epochs, total_seconds),
         'package_versions': get_package_versions(python_path)
     }
@@ -242,6 +243,15 @@ def format_variance(summaries: List[dict], label: str) -> List[str]:
     )]
 
 
+def get_spread(runs: List[dict]) -> Optional[float]:
+    scores = [run['micro_f1'] for run in runs]
+    return max(scores) - min(scores) if len(scores) >= 2 else None
+
+
+def summaries_of(*run_groups: List[dict]) -> List[dict]:
+    return [run for group in run_groups for run in group]
+
+
 def format_comparison(summaries: List[dict]) -> List[str]:
     baseline_runs = [s for s in summaries if s['label'] == 'tf']
     candidate_runs = [s for s in summaries if s['label'] == 'torch']
@@ -264,14 +274,18 @@ def format_comparison(summaries: List[dict]) -> List[str]:
     candidate_scores = candidate_runs[0]['scores']
     for field, baseline in baseline_scores.items():
         candidate = candidate_scores.get(field)
+        # a type with no entities in the reference carries no signal
         if not candidate or not baseline.get('support'):
             continue
         field_delta = candidate['f1'] - baseline['f1']
         if -field_delta > FIELD_F1_TOLERANCE:
             fields_below.append('%s (%+.4f)' % (field, field_delta))
 
+    spread = max(
+        get_spread(baseline_runs), get_spread(candidate_runs)
+    )
+    lines.append('')
     if -delta > MICRO_F1_TOLERANCE or fields_below:
-        lines.append('')
         lines.append('**Outside the tolerance.** The spec blocks on this.')
         if -delta > MICRO_F1_TOLERANCE:
             lines.append('- micro F1 is down more than %.1f points'
@@ -279,11 +293,31 @@ def format_comparison(summaries: List[dict]) -> List[str]:
         for field in fields_below:
             lines.append('- %s is down more than %.1f point'
                          % (field, FIELD_F1_TOLERANCE * 100))
+    elif spread is not None and spread > MICRO_F1_TOLERANCE:
+        lines.append(
+            '**Not a parity verdict.** No regression: nothing is down. But the'
+            ' run-to-run spread is %.4f, %.0fx the %.1f point tolerance, so'
+            ' this measurement cannot establish parity at that tolerance.'
+            ' More seeds, or a tolerance revised knowingly, per the spec.'
+            % (spread, spread / MICRO_F1_TOLERANCE, MICRO_F1_TOLERANCE * 100)
+        )
     else:
-        lines.append('')
         lines.append('Within the tolerance: micro F1 within %.1f points and no'
                      ' field down more than %.1f point.'
                      % (MICRO_F1_TOLERANCE * 100, FIELD_F1_TOLERANCE * 100))
+
+    unconverged = [
+        '%s seed %d' % (s['label'], s['seed'])
+        for s in summaries_of(baseline_runs, candidate_runs)
+        if s['stopped_epoch'] and s['stopped_epoch'] >= s.get('max_epoch', 0)
+    ]
+    if unconverged:
+        lines.append('')
+        lines.append(
+            '**Did not converge**: %s ran to the epoch limit, so early stopping'
+            ' never fired and these are not the models\' final scores.'
+            % ', '.join(unconverged)
+        )
 
     baseline_epochs = [s['best_epoch'] for s in baseline_runs if s['best_epoch']]
     candidate_epochs = [s['best_epoch'] for s in candidate_runs if s['best_epoch']]
