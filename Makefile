@@ -8,6 +8,11 @@ PIP = $(UV) pip
 
 PYTHON = PATH=$(VENV)/bin:$$PATH $(VENV)/bin/python
 
+# torch resolves from the CPU index by default, so a CUDA build is installed
+# over it explicitly; the version is read from pyproject to stay in step
+TORCH_VERSION = $(shell grep -oP 'torch==\K[0-9.]+' pyproject.toml | head -1)
+TORCH_CUDA_INDEX_URL = https://download.pytorch.org/whl/cu130
+
 BATCH_SIZE = 10
 MAX_EPOCH = 1
 MAX_SEQUENCE_LENGTH = 500
@@ -79,7 +84,19 @@ dev-install:
 	$(UV) sync --active --frozen --all-extras --all-groups
 
 
+dev-install-gpu-torch:
+	$(UV) pip install --reinstall \
+		--index-url $(TORCH_CUDA_INDEX_URL) \
+		torch==$(TORCH_VERSION)
+	$(PYTHON) -c "import torch; print('torch', torch.__version__, 'cuda', torch.cuda.is_available())"
+
+
 dev-venv: venv-create dev-install
+
+
+# note: a later `uv sync` reinstalls the CPU build, since that is what the
+# lockfile pins; re-run dev-install-gpu-torch after one
+dev-venv-gpu: dev-venv dev-install-gpu-torch
 
 
 dev-flake8:
