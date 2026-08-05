@@ -6,14 +6,7 @@ VENV = .venv
 UV = VIRTUAL_ENV=$(VENV) uv
 PIP = $(UV) pip
 
-# TensorFlow's GPU backend dlopen's libcudnn.so.8, but torch pins nvidia-cudnn-cu12==9.x
-# (a different SONAME) and only one version of that package can be installed at a time.
-# We install cuDNN 8 separately (not into the venv) and expose it via LD_LIBRARY_PATH so
-# TensorFlow can find it without disturbing the cuDNN 9 that torch depends on.
-CUDNN8_COMPAT_DIR = .venv-cudnn8-compat
-CUDNN8_COMPAT_VERSION = 8.9.7.29
-
-PYTHON = PATH=$(VENV)/bin:$$PATH LD_LIBRARY_PATH=$(CUDNN8_COMPAT_DIR)/nvidia/cudnn/lib:$$LD_LIBRARY_PATH $(VENV)/bin/python
+PYTHON = PATH=$(VENV)/bin:$$PATH $(VENV)/bin/python
 
 BATCH_SIZE = 10
 MAX_EPOCH = 1
@@ -86,11 +79,7 @@ dev-install:
 	$(UV) sync --active --frozen --all-extras --all-groups
 
 
-dev-install-cudnn8-compat:
-	$(UV) pip install --no-deps --target $(CUDNN8_COMPAT_DIR) nvidia-cudnn-cu12==$(CUDNN8_COMPAT_VERSION)
-
-
-dev-venv: venv-create dev-install dev-install-cudnn8-compat
+dev-venv: venv-create dev-install
 
 
 dev-flake8:
@@ -110,19 +99,16 @@ dev-lint: dev-flake8 dev-pylint dev-mypy
 
 dev-pytest:
 	PATH=./third-parties/wapiti:$$PATH \
-		TF_USE_LEGACY_KERAS=1 \
 		$(PYTHON) -m pytest -v -p no:cacheprovider $(ARGS)
 
 
 dev-pytest-not-slow:
 	PATH=./third-parties/wapiti:$$PATH \
-		TF_USE_LEGACY_KERAS=1 \
 		$(PYTHON) -m pytest -v -p no:cacheprovider $(NOT_SLOW_PYTEST_ARGS)
 
 
 dev-pytest-slow-only:
 	PATH=./third-parties/wapiti:$$PATH \
-		TF_USE_LEGACY_KERAS=1 \
 		$(PYTHON) -m pytest -v -p no:cacheprovider \
 		$(SLOW_PYTEST_ARGS) \
 		-p no:cacheprovider -p no:warnings -vv --maxfail=1 $(ARGS)
@@ -139,7 +125,6 @@ dev-watch:
 
 dev-watch-slow:
 	PATH=./third-parties/wapiti:$$PATH \
-		TF_USE_LEGACY_KERAS=1 \
 		$(PYTHON) -m pytest_watcher \
 		--runner=$(VENV)/bin/python \
 		. \

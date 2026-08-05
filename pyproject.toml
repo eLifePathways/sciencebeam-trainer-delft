@@ -6,15 +6,14 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "jsonpickle>=1.4.1",
+    # remote file access; a scheme needs its own implementation package, see
+    # the `gcs` extra
+    "fsspec>=2025.12.0",
 ]
 
 [project.optional-dependencies]
-tf = [
-    "tensorflow>=2.17.1",
-    "wrapt>=1.14.0",
-    # provides libdevice.10.bc, needed by TensorFlow's XLA GPU JIT compiler
-    # (normally pulled in via tensorflow's own `and-cuda` extra, which we don't use)
-    "nvidia-cuda-nvcc-cu12>=12.3.107; sys_platform == 'linux'",
+gcs = [
+    "gcsfs>=2025.12.0",
 ]
 delft = [
     "delft>=1.0.1",
