@@ -53,6 +53,9 @@ REPORTED_PACKAGES = [
 MICRO_F1_TOLERANCE = 0.005
 FIELD_F1_TOLERANCE = 0.01
 
+# shown when a run fails, so the reason does not need the log opening
+LOG_TAIL_LINES = 25
+
 
 def get_package_versions(python_path: str) -> Dict[str, str]:
     script = (
@@ -137,6 +140,7 @@ def get_seconds_per_epoch(epochs: List[dict], total_seconds: float) -> Optional[
 
 def run_training(
     python_path: str,
+    checkout_directory: Path,
     label: str,
     seed: int,
     output_directory: Path,
@@ -144,7 +148,9 @@ def run_training(
     limit: Optional[int],
     use_legacy_keras: bool
 ) -> dict:
-    run_directory = output_directory / ('%s-seed%d' % (label, seed))
+    # `python -m` puts the working directory first on sys.path, so each side
+    # has to run from its own checkout or it imports the other one's code
+    run_directory = (output_directory / ('%s-seed%d' % (label, seed))).resolve()
     run_directory.mkdir(parents=True, exist_ok=True)
     eval_path = run_directory / 'eval.json'
     checkpoint_directory = run_directory / 'checkpoints'
@@ -175,14 +181,16 @@ def run_training(
     with open(log_path, 'w', encoding='utf-8') as log_fp:
         result = subprocess.run(
             command, stdout=log_fp, stderr=subprocess.STDOUT,
-            env=environment, check=False
+            env=environment, cwd=str(checkout_directory), check=False
         )
     total_seconds = time.monotonic() - started
     if result.returncode:
-        raise RuntimeError(
-            '%s seed %d failed (exit %d), see %s'
-            % (label, seed, result.returncode, log_path)
-        )
+        tail = log_path.read_text(encoding='utf-8').splitlines()[-LOG_TAIL_LINES:]
+        raise RuntimeError('\n'.join([
+            '%s seed %d failed (exit %d), last %d lines of %s:'
+            % (label, seed, result.returncode, LOG_TAIL_LINES, log_path),
+            *tail
+        ]))
 
     evaluation = json.loads(eval_path.read_text())
     epochs = get_checkpoint_epochs(checkpoint_directory)
@@ -332,6 +340,10 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         '--tf-venv',
         help='path to the venv of the TensorFlow checkout; omitted runs only this one'
     )
+    parser.add_argument(
+        '--tf-checkout',
+        help='the TensorFlow checkout to run from; the parent of --tf-venv by default'
+    )
     parser.add_argument('--torch-venv', default='.venv', help='this checkout venv')
     parser.add_argument('--seeds', type=int, nargs='+', default=[42, 43])
     parser.add_argument('--max-epoch', type=int, default=50)
@@ -347,20 +359,34 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 def main(argv: Optional[List[str]] = None) -> int:
     logging.basicConfig(level='INFO', format='%(levelname)s %(message)s')
     args = parse_args(argv)
-    output_directory = Path(args.output_dir)
+    # resolved up front, since each run happens in its own working directory
+    output_directory = Path(args.output_dir).resolve()
+    note_path = Path(args.note_path).resolve()
 
     runs = []
     if args.tf_venv:
-        runs.append(('tf', str(Path(args.tf_venv) / 'bin' / 'python'), True))
-    runs.append(('torch', str(Path(args.torch_venv) / 'bin' / 'python'), False))
+        tf_venv = Path(args.tf_venv).resolve()
+        tf_checkout = (
+            Path(args.tf_checkout).resolve() if args.tf_checkout else tf_venv.parent
+        )
+        runs.append(('tf', tf_venv / 'bin' / 'python', tf_checkout, True))
+    torch_venv = Path(args.torch_venv).resolve()
+    runs.append(('torch', torch_venv / 'bin' / 'python', Path.cwd(), False))
 
     summaries = []
-    for label, python_path, use_legacy_keras in runs:
-        if not Path(python_path).exists():
+    for label, python_path, checkout_directory, use_legacy_keras in runs:
+        if not python_path.exists():
             raise FileNotFoundError('no interpreter at %s' % python_path)
+        if not (checkout_directory / 'sciencebeam_trainer_delft').is_dir():
+            raise FileNotFoundError(
+                'no sciencebeam_trainer_delft in %s: the run would import the'
+                ' wrong checkout' % checkout_directory
+            )
+        LOGGER.info('%s: %s in %s', label, python_path, checkout_directory)
         for seed in args.seeds:
             summaries.append(run_training(
-                python_path=python_path,
+                python_path=str(python_path),
+                checkout_directory=checkout_directory,
                 label=label,
                 seed=seed,
                 output_directory=output_directory,
@@ -370,7 +396,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             ))
 
     (output_directory / 'summaries.json').write_text(json.dumps(summaries, indent=2))
-    write_note(Path(args.note_path), summaries, args.max_epoch, args.limit)
+    write_note(note_path, summaries, args.max_epoch, args.limit)
     print()
     print('\n'.join(format_run_table(summaries)))
     print()
