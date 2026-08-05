@@ -11,7 +11,7 @@ import sciencebeam_trainer_delft.utils.no_warn_if_disabled  # noqa, pylint: disa
 
 from sciencebeam_trainer_delft.utils.download_manager import DownloadManager
 from sciencebeam_trainer_delft.utils.cloud_support import patch_cloud_support
-from sciencebeam_trainer_delft.utils.device import get_device_info
+from sciencebeam_trainer_delft.utils.device import get_device_info, log_device_info
 from sciencebeam_trainer_delft.utils.io import (
     copy_file,
     auto_uploading_output_file
@@ -229,7 +229,7 @@ class TrainSubCommand(GrobidTrainerSubCommand):
         if not args.model:
             raise ValueError("model required")
         device_info = get_device_info()
-        LOGGER.info('device_info: %s', device_info)
+        log_device_info(device_info)
         check_required_gpu(
             require_gpu=args.require_gpu,
             device_info=device_info,
@@ -294,7 +294,7 @@ class TrainEvalSubCommand(GrobidTrainerSubCommand):
         if args.fold_count < 1:
             raise ValueError("fold-count should be equal or more than 1")
         device_info = get_device_info()
-        LOGGER.info('device_info: %s', device_info)
+        log_device_info(device_info)
         check_required_gpu(
             require_gpu=args.require_gpu,
             device_info=device_info,

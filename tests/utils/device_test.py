@@ -8,7 +8,9 @@ from sciencebeam_trainer_delft.utils.device import (
     get_device_info,
     get_device_summary,
     get_gpu_device_names,
-    get_gpu_devices
+    get_gpu_devices,
+    get_unsupported_gpu_devices,
+    log_device_info
 )
 
 
@@ -103,3 +105,41 @@ class TestWrapperDeviceDefault:
         monkeypatch.setenv(EnvironmentVariables.DEVICE, CPU_DEVICE)
         with patch.object(device_module.torch.cuda, 'is_available', return_value=True):
             assert get_default_device_or_env() == CPU_DEVICE
+
+
+class TestGetUnsupportedGpuDevices:
+    def test_should_report_a_capability_the_wheel_was_not_built_for(self):
+        device_info = {'gpu_device_capabilities': ['sm_75'], 'torch_arch_list': ['sm_90']}
+        assert get_unsupported_gpu_devices(device_info) == ['sm_75']
+
+    def test_should_report_nothing_when_the_capability_is_built(self):
+        device_info = {
+            'gpu_device_capabilities': ['sm_75'], 'torch_arch_list': ['sm_75', 'sm_90']
+        }
+        assert get_unsupported_gpu_devices(device_info) == []
+
+    def test_should_report_nothing_without_an_arch_list(self):
+        # a CPU build has no arch list, and no GPU to be incompatible with
+        assert get_unsupported_gpu_devices(
+            {'gpu_device_capabilities': [], 'torch_arch_list': []}
+        ) == []
+
+
+class TestLogDeviceInfo:
+    def test_should_warn_about_an_unsupported_gpu(self, caplog):
+        with caplog.at_level('WARNING'):
+            log_device_info({
+                'torch_version': TORCH_VERSION,
+                'gpu_device_capabilities': ['sm_75'],
+                'torch_arch_list': ['sm_90']
+            })
+        assert 'no kernels for sm_75' in caplog.text
+
+    def test_should_not_warn_about_a_supported_gpu(self, caplog):
+        with caplog.at_level('WARNING'):
+            log_device_info({
+                'torch_version': TORCH_VERSION,
+                'gpu_device_capabilities': ['sm_75'],
+                'torch_arch_list': ['sm_75']
+            })
+        assert 'no kernels' not in caplog.text

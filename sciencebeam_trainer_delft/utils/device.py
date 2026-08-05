@@ -3,9 +3,13 @@
 Used to pick where a run happens, to fail fast on `--require-gpu`, and to name
 the device in a training notification.
 """
+import logging
 from typing import List
 
 import torch
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 CPU_DEVICE = 'cpu'
@@ -21,11 +25,41 @@ def get_gpu_device_names() -> List[str]:
     ]
 
 
+def get_gpu_device_capabilities() -> List[str]:
+    """Returns the compute capability of each GPU, e.g. `sm_75` for a T4."""
+    if not torch.cuda.is_available():
+        return []
+    return [
+        'sm_%d%d' % torch.cuda.get_device_capability(index)
+        for index in range(torch.cuda.device_count())
+    ]
+
+
+def get_unsupported_gpu_devices(device_info: dict) -> List[str]:
+    """Names the GPUs this torch build has no compiled kernels for.
+
+    A wheel is built for a fixed set of architectures, and running on a card
+    outside that set fails at the first kernel launch with `no kernel image is
+    available for execution on the device`, which does not say why.
+    """
+    arch_list = device_info.get('torch_arch_list') or []
+    if not arch_list:
+        return []
+    return [
+        capability
+        for capability in (device_info.get('gpu_device_capabilities') or [])
+        if capability not in arch_list
+    ]
+
+
 def get_device_info() -> dict:
     return {
         'torch_version': torch.__version__,
         'cuda_version': torch.version.cuda,
-        'gpu_device_names': get_gpu_device_names()
+        'gpu_device_names': get_gpu_device_names(),
+        'gpu_device_capabilities': get_gpu_device_capabilities(),
+        # what the installed wheel was compiled for
+        'torch_arch_list': list(torch.cuda.get_arch_list())
     }
 
 
@@ -40,6 +74,18 @@ def get_device_summary(device_info: dict) -> str:
     else:
         device_part = 'GPU x%d (%s)' % (len(gpu_devices), ', '.join(gpu_devices))
     return '%s [torch: %s]' % (device_part, device_info.get('torch_version'))
+
+
+def log_device_info(device_info: dict):
+    """Logs the device, and warns if the wheel cannot run on it."""
+    LOGGER.info('device_info: %s', device_info)
+    unsupported = get_unsupported_gpu_devices(device_info)
+    if unsupported:
+        LOGGER.warning(
+            'this torch build has no kernels for %s (built for %s):'
+            ' a different CUDA wheel is required',
+            ', '.join(unsupported), ', '.join(device_info['torch_arch_list'])
+        )
 
 
 def get_default_device() -> str:
