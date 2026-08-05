@@ -111,7 +111,8 @@ def get_decode_by_token_fn(
     """
     vocab_tag = preprocessor.vocab_tag
     LOGGER.debug('vocab_tag=%s', vocab_tag)
-    char_by_index_map = {i: c for c, i in preprocessor.vocab_char.items()}
+    vocab_char: Dict[str, int] = preprocessor.vocab_char or {}
+    char_by_index_map = {i: c for c, i in vocab_char.items()}
 
     def decode(inputs):
         char_inputs = inputs[CHAR_INPUT].numpy()

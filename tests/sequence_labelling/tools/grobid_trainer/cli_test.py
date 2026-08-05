@@ -19,6 +19,12 @@ from ....test_utils import log_on_exception
 
 LOGGER = logging.getLogger(__name__)
 
+
+DELFT_MODELS_ARE_KERAS_REASON = (
+    'the published delft models are Keras hdf5 and there is no TensorFlow to'
+    ' load them with; spec 002 converts them to PyTorch and restores this case'
+)
+
 INPUT_PATH_1 = '/path/to/dataset1'
 INPUT_PATH_2 = '/path/to/dataset2'
 
@@ -144,6 +150,7 @@ class TestGrobidTrainer:
             with gzip.open(str(output_path), mode='rb') as fp:
                 assert fp.read() == 'some training data'
 
+        @pytest.mark.skip(reason=DELFT_MODELS_ARE_KERAS_REASON)
         @log_on_exception
         def test_should_be_able_tag_using_existing_grobid_model(
                 self, capsys):
@@ -162,6 +169,7 @@ class TestGrobidTrainer:
             title = ' '.join(node.text for node in root.findall('.//title'))
             assert title == GROBID_HEADER_TEST_DATA_TITLE_1
 
+        @pytest.mark.skip(reason=DELFT_MODELS_ARE_KERAS_REASON)
         @log_on_exception
         def test_should_be_able_eval_using_existing_grobid_model(
                 self, temp_dir: Path):

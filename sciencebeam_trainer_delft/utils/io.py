@@ -209,9 +209,15 @@ def _require_tf_file_io():
         raise ImportError('Cloud storage file transfer requires TensorFlow.')
 
 
+def file_exists(filepath: str) -> bool:
+    if is_external_location(filepath):
+        _require_tf_file_io()
+        return tf_file_io.file_exists(filepath)
+    return os.path.exists(filepath)
+
+
 def copy_file(source_filepath: str, target_filepath: str, overwrite: bool = True):
-    _require_tf_file_io()
-    if not overwrite and tf_file_io.file_exists(target_filepath):
+    if not overwrite and file_exists(target_filepath):
         LOGGER.info('skipping already existing file: %s', target_filepath)
         return
     with open_file(str(source_filepath), mode='rb') as source_fp:
@@ -220,8 +226,10 @@ def copy_file(source_filepath: str, target_filepath: str, overwrite: bool = True
 
 
 def list_files(directory_path: str) -> List[str]:
-    _require_tf_file_io()
-    return tf_file_io.list_directory(directory_path)
+    if is_external_location(directory_path):
+        _require_tf_file_io()
+        return tf_file_io.list_directory(directory_path)
+    return os.listdir(directory_path)
 
 
 def is_binary_mode(mode: str) -> bool:

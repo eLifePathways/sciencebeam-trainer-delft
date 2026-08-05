@@ -114,39 +114,6 @@ def _seq_wrapper_load_resource_registry_mock(
         yield mock
 
 
-@pytest.fixture(name='text_models_load_resource_registry_mock', autouse=True)
-def _text_models_load_resource_registry_mock(
-    load_resource_registry_mock: MagicMock
-) -> Iterator[MagicMock]:
-    with patch(
-        'delft.textClassification.models.load_resource_registry',
-        load_resource_registry_mock
-    ) as mock:
-        yield mock
-
-
-@pytest.fixture(name='text_wrapper_load_resource_registry_mock', autouse=True)
-def _text_wrapper_load_resource_registry_mock(
-    load_resource_registry_mock: MagicMock
-) -> Iterator[MagicMock]:
-    with patch(
-        'delft.textClassification.wrapper.load_resource_registry',
-        load_resource_registry_mock
-    ) as mock:
-        yield mock
-
-
-@pytest.fixture(name='wrapper_load_resource_registry_mock', autouse=True)
-def _wrapper_load_resource_registry_mock(
-    load_resource_registry_mock: MagicMock
-) -> Iterator[MagicMock]:
-    with patch(
-        'delft.textClassification.wrapper.load_resource_registry',
-        load_resource_registry_mock
-    ) as mock:
-        yield mock
-
-
 # @pytest.fixture(autouse=True)
 # def _embedding_class(embedding_registry_path: Path):
 #     embedding_class_with_defaults = partial(Embeddings, path=str(embedding_registry_path))
@@ -157,7 +124,7 @@ def _wrapper_load_resource_registry_mock(
 
 @pytest.fixture(name='trainer_class_mock')
 def _trainer_class_mock():
-    with patch('sciencebeam_trainer_delft.sequence_labelling.wrapper.Trainer') as mock:
+    with patch('sciencebeam_trainer_delft.sequence_labelling.wrapper.ModelTrainer') as mock:
         yield mock
 
 
@@ -585,12 +552,12 @@ class TestGrobidTrainerUtils:
                             str(source_model_output_path / default_args['model_name'])
                         ),
                         copy_layers={
-                            'char_embeddings': 'char_embeddings',
-                            'char_lstm': 'char_lstm'
+                            'char_encoder.char_embeddings': 'char_encoder.char_embeddings',
+                            'char_encoder.char_lstm': 'char_encoder.char_lstm'
                         },
                         copy_preprocessor=copy_preprocessor,
                         copy_preprocessor_fields=['vocab_char'],
-                        freeze_layers=['char_embeddings']
+                        freeze_layers=['char_encoder.char_embeddings']
                     ),
                     'embeddings_name': None,
                     'config_props': {

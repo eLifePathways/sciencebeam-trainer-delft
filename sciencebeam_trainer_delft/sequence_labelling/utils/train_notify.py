@@ -7,9 +7,9 @@ import requests
 from sciencebeam_trainer_delft.sequence_labelling.evaluation import (
     ClassificationResult
 )
-from sciencebeam_trainer_delft.utils.tf import (
-    get_tf_gpu_devices,
-    get_tf_device_summary
+from sciencebeam_trainer_delft.utils.device import (
+    get_gpu_devices,
+    get_device_summary
 )
 
 
@@ -200,15 +200,15 @@ class RequiredGpuNotAvailable(RuntimeError):
 
 def check_required_gpu(
     require_gpu: bool,
-    tf_info: dict,
+    device_info: dict,
     model_path: str,
     train_notification_manager: Optional[TrainNotificationManager]
 ):
-    if not require_gpu or get_tf_gpu_devices(tf_info):
+    if not require_gpu or get_gpu_devices(device_info):
         return
     error_message = (
         'GPU required (--require-gpu) but none available (device: %s)'
-        % get_tf_device_summary(tf_info)
+        % get_device_summary(device_info)
     )
     notify_train_error(
         train_notification_manager,

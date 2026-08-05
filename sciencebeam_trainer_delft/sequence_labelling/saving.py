@@ -18,7 +18,7 @@ import json
 import os
 from datetime import datetime
 from abc import ABC
-from typing import Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, cast
 
 import joblib
 
@@ -118,7 +118,9 @@ def get_preprocessor_json(preprocessor: DelftWordPreprocessor) -> dict:
     return to_json(preprocessor_dict, plain_json=True)
 
 
-def get_feature_preprocessor_for_json(feature_preprocessor_json: dict) -> T_FeaturesPreprocessor:
+def get_feature_preprocessor_for_json(
+    feature_preprocessor_json: dict
+) -> Optional[T_FeaturesPreprocessor]:
     if not feature_preprocessor_json:
         return None
     LOGGER.debug('feature_preprocessor_json: %s', feature_preprocessor_json)
@@ -140,9 +142,9 @@ def get_preprocessor_for_json(preprocessor_json: dict) -> DelftWordPreprocessor:
         LOGGER.debug('preprocessor: %r', preprocessor)
     if isinstance(preprocessor, DelftWordPreprocessor):
         if isinstance(preprocessor.feature_preprocessor, dict):
-            preprocessor.feature_preprocessor = get_feature_preprocessor_for_json(
+            preprocessor.feature_preprocessor = cast(Any, get_feature_preprocessor_for_json(
                 preprocessor.feature_preprocessor
-            )
+            ))
         preprocessor = migrate_legacy_preprocessor_state_if_necessary(preprocessor)
     return preprocessor
 

@@ -3,11 +3,12 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from torch import nn
+
 from delft.sequenceLabelling.preprocess import (
     FeaturesPreprocessor as DelftFeaturesPreprocessor,
     Preprocessor as DelftWordPreprocessor
 )
-from delft.sequenceLabelling.models import BaseModel
 
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig
 from sciencebeam_trainer_delft.sequence_labelling.preprocess import (
@@ -31,16 +32,17 @@ SAMPLE_FEATURES = [[['F1', 'F2']]]
 SAMPLE_Y = [['label1']]
 
 
-class DummyModel(BaseModel):
-    def __init__(self, config, ntags: Optional[int] = None, data: bytes = b'dummy data'):
-        super().__init__(config, ntags)
-        self.data = data
+class DummyModel(nn.Module):
+    """Stands in for a real architecture; these tests are about the preprocessor."""
 
-    def save(self, filepath):
-        Path(filepath).write_bytes(self.data)
+    def __init__(self, config, ntags: Optional[int] = None):
+        super().__init__()
+        self.config = config
+        self.ntags = ntags
+        self.dense = nn.Linear(2, 2)
 
-    def load(self, filepath):
-        self.data = Path(filepath).read_bytes()
+    def forward(self, inputs):
+        return self.dense(inputs)
 
 
 def get_vars(obj) -> dict:

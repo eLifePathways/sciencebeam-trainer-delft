@@ -7,6 +7,7 @@ import pytest
 
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig, TrainingConfig
 from sciencebeam_trainer_delft.sequence_labelling.models import CustomBidLSTM_CRF
+from sciencebeam_trainer_delft.sequence_labelling.wrapper import get_vocab_size
 from sciencebeam_trainer_delft.sequence_labelling.preprocess import Preprocessor
 from sciencebeam_trainer_delft.sequence_labelling.saving import ModelSaver
 from sciencebeam_trainer_delft.sequence_labelling.trainer_torch import ModelTrainer
@@ -42,7 +43,7 @@ def _model_config(preprocessor: Preprocessor) -> ModelConfig:
         model_name='test-model',
         architecture='CustomBidLSTM_CRF',
         embeddings_name=None,
-        char_vocab_size=len(preprocessor.vocab_char),
+        char_vocab_size=get_vocab_size(preprocessor.vocab_char),
         char_embedding_size=5,
         num_char_lstm_units=4,
         max_char_length=5,
@@ -76,7 +77,7 @@ def _model_trainer(
     checkpoint_path: Optional[str] = None,
     model_saver: Optional[ModelSaver] = None
 ) -> ModelTrainer:
-    model = CustomBidLSTM_CRF(model_config, len(preprocessor.vocab_tag))
+    model = CustomBidLSTM_CRF(model_config, get_vocab_size(preprocessor.vocab_tag))
     return ModelTrainer(
         model,
         model_config=model_config,

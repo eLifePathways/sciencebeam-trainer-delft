@@ -14,6 +14,7 @@ from sciencebeam_trainer_delft.sequence_labelling.data_loader_torch import (
     to_model_inputs
 )
 from sciencebeam_trainer_delft.sequence_labelling.models import CustomBidLSTM_CRF
+from sciencebeam_trainer_delft.sequence_labelling.wrapper import get_vocab_size
 from sciencebeam_trainer_delft.sequence_labelling.preprocess import WordPreprocessor
 from sciencebeam_trainer_delft.sequence_labelling.tagger import Tagger
 
@@ -37,7 +38,7 @@ def _model_config(preprocessor: WordPreprocessor) -> ModelConfig:
         model_name='test-model',
         architecture='CustomBidLSTM_CRF',
         embeddings_name=None,
-        char_vocab_size=len(preprocessor.vocab_char),
+        char_vocab_size=get_vocab_size(preprocessor.vocab_char),
         char_embedding_size=5,
         num_char_lstm_units=4,
         max_char_length=MAX_CHAR_LENGTH,
@@ -54,7 +55,7 @@ def _model_config(preprocessor: WordPreprocessor) -> ModelConfig:
 @pytest.fixture(name='model')
 def _model(model_config: ModelConfig, preprocessor: WordPreprocessor) -> CustomBidLSTM_CRF:
     torch.manual_seed(7)
-    model = CustomBidLSTM_CRF(model_config, len(preprocessor.vocab_tag))
+    model = CustomBidLSTM_CRF(model_config, get_vocab_size(preprocessor.vocab_tag))
     model.eval()
     return model
 

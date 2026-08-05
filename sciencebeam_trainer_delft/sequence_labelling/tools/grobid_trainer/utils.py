@@ -13,7 +13,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 
 from sklearn.model_selection import train_test_split
-import tensorflow as tf
 
 from sciencebeam_trainer_delft.sequence_labelling.typing import (
     T_Batch_Features_Array,
@@ -26,9 +25,9 @@ from sciencebeam_trainer_delft.utils.io import (
     write_text,
     auto_uploading_output_file
 )
-from sciencebeam_trainer_delft.utils.tf import (
-    get_tf_info,
-    get_tf_device_summary
+from sciencebeam_trainer_delft.utils.device import (
+    get_device_info,
+    get_device_summary
 )
 
 from sciencebeam_trainer_delft.embedding import EmbeddingManager
@@ -42,6 +41,9 @@ from sciencebeam_trainer_delft.sequence_labelling.utils.train_notify import (
 
 from sciencebeam_trainer_delft.sequence_labelling.wrapper import (
     Sequence
+)
+from sciencebeam_trainer_delft.sequence_labelling.trainer_torch import (
+    set_random_seed as set_torch_random_seed
 )
 from sciencebeam_trainer_delft.sequence_labelling.reader import load_data_and_labels_crf_file
 
@@ -88,7 +90,7 @@ DEFAULT_TAG_OUTPUT_FORMAT = TagOutputFormats.XML
 
 def set_random_seeds(random_seed: int):
     np.random.seed(random_seed)
-    tf.random.set_seed(random_seed)
+    set_torch_random_seed(random_seed)
 
 
 def get_default_training_data(model: str) -> str:
@@ -195,7 +197,7 @@ def notify_model_train_start(
         checkpoints_path=model.log_dir,
         resume_train_model_path=model.model_path,
         initial_epoch=model.training_config.initial_epoch,
-        device=get_tf_device_summary(get_tf_info())
+        device=get_device_summary(get_device_info())
     )
 
 
