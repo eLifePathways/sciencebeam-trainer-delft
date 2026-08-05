@@ -4,11 +4,19 @@ version = "0.0.0"
 description = "ScienceBeam Trainer DeLFT"
 readme = "README.md"
 requires-python = ">=3.10"
+# every package imported directly is declared here, rather than relied on to
+# arrive through delft or scikit-learn
 dependencies = [
     "jsonpickle>=1.4.1",
     # remote file access; a scheme needs its own implementation package, see
     # the `gcs` extra
     "fsspec>=2025.12.0",
+    "joblib>=1.5.2",
+    "numpy>=1.26.4",
+    "requests>=2.27.1",
+    "scikit-learn>=1.6.1",
+    "tqdm>=4.66.3",
+    "typing-extensions>=4.15.0",
 ]
 
 [project.optional-dependencies]
