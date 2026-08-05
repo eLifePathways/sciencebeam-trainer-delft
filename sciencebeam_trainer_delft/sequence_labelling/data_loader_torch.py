@@ -9,10 +9,12 @@ with worker processes, would move word-embedding lookup into forked children,
 where the LMDB environment the embeddings are read from is not fork-safe.
 """
 import logging
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import Dict, Iterator, List, Optional, Set, Tuple
 
 import numpy as np
 import torch
+
+from delft.utilities.preprocess import FeaturesPreprocessor as DelftFeaturesPreprocessor
 
 from sciencebeam_trainer_delft.sequence_labelling.data_generator import DataGenerator
 
@@ -29,6 +31,25 @@ LENGTH_INPUT = 'length_input'
 LONG_INPUTS = {CHAR_INPUT, CASING_INPUT, LENGTH_INPUT}
 
 
+def is_features_indices_input(preprocessor) -> bool:
+    """Reports whether the features are vocabulary indices rather than a matrix.
+
+    Upstream's features preprocessor maps each feature value to an index, for
+    the architectures that embed features. This repo's produces a float matrix,
+    which is concatenated into the word LSTM input unchanged.
+    """
+    return isinstance(
+        getattr(preprocessor, 'feature_preprocessor', None), DelftFeaturesPreprocessor
+    )
+
+
+def get_long_input_names(preprocessor) -> Set[str]:
+    """Names the inputs that have to reach the model as integers."""
+    if is_features_indices_input(preprocessor):
+        return LONG_INPUTS | {FEATURES_INPUT}
+    return LONG_INPUTS
+
+
 def get_input_names(data_generator: DataGenerator) -> List[str]:
     """Names the arrays the generator produces, in the order it appends them."""
     names = [WORD_INPUT, CHAR_INPUT]
@@ -40,8 +61,10 @@ def get_input_names(data_generator: DataGenerator) -> List[str]:
     return names
 
 
-def to_input_tensor(name: str, array: np.ndarray) -> torch.Tensor:
-    if name in LONG_INPUTS:
+def to_input_tensor(
+    name: str, array: np.ndarray, long_input_names: Optional[Set[str]] = None
+) -> torch.Tensor:
+    if name in (LONG_INPUTS if long_input_names is None else long_input_names):
         return torch.as_tensor(np.asarray(array), dtype=torch.long)
     return torch.as_tensor(np.asarray(array), dtype=torch.float32)
 
@@ -61,7 +84,8 @@ def to_label_tensor(labels: np.ndarray) -> torch.Tensor:
 def to_model_inputs(
     input_names: List[str],
     arrays: List[np.ndarray],
-    device: Optional[str] = None
+    device: Optional[str] = None,
+    long_input_names: Optional[Set[str]] = None
 ) -> Dict[str, torch.Tensor]:
     """Names and converts the arrays of one batch."""
     if len(arrays) != len(input_names):
@@ -69,7 +93,7 @@ def to_model_inputs(
             f'expected {len(input_names)} inputs {input_names}, got {len(arrays)}'
         )
     inputs = {
-        name: to_input_tensor(name, array)
+        name: to_input_tensor(name, array, long_input_names)
         for name, array in zip(input_names, arrays)
     }
     if device:
@@ -84,6 +108,7 @@ class DataLoader:
         self.data_generator = data_generator
         self.device = device
         self.input_names = get_input_names(data_generator)
+        self.long_input_names = get_long_input_names(data_generator.preprocessor)
 
     def __len__(self) -> int:
         return len(self.data_generator)
@@ -92,7 +117,10 @@ class DataLoader:
         self, index: int
     ) -> Tuple[Dict[str, torch.Tensor], Optional[torch.Tensor]]:
         arrays, labels = self.data_generator[index]
-        inputs = to_model_inputs(self.input_names, arrays, device=self.device)
+        inputs = to_model_inputs(
+            self.input_names, arrays, device=self.device,
+            long_input_names=self.long_input_names
+        )
         label_tensor = None if labels is None else to_label_tensor(labels)
         if self.device and label_tensor is not None:
             label_tensor = label_tensor.to(self.device)

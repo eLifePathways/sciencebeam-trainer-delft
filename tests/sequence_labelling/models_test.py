@@ -14,9 +14,11 @@ from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig
 from sciencebeam_trainer_delft.sequence_labelling.models import (
     BidLSTM_CRF_FEATURES,
     CustomBidLSTM_CRF,
+    CustomBidLSTM_CRF_FEATURES,
     get_model,
     get_model_names,
     is_model_stateful,
+    to_tag_indices_array,
     updated_implicit_model_config_props
 )
 from sciencebeam_trainer_delft.sequence_labelling.upstream_patches import (
@@ -230,3 +232,121 @@ class TestIsModelStateful:
     def test_should_report_the_architectures_as_stateless(self):
         model = CustomBidLSTM_CRF(_model_config(), NTAGS)
         assert is_model_stateful(model) is False
+
+
+FEATURES_INDICES = [9, 10, 11]
+FEATURES_VOCABULARY_SIZE = 12
+FEATURES_EMBEDDING_SIZE = 4
+FEATURES_LSTM_UNITS = 5
+
+
+def _features_model_config(
+    architecture: str = CustomBidLSTM_CRF_FEATURES.name, **kwargs
+) -> ModelConfig:
+    return ModelConfig(
+        architecture=architecture,
+        char_vocab_size=int(REFERENCE_CONFIG['char_vocab_size']),
+        char_embedding_size=5,
+        num_char_lstm_units=4,
+        max_char_length=6,
+        num_word_lstm_units=6,
+        word_embedding_size=0,
+        dropout=0.0,
+        use_features=True,
+        use_features_indices_input=True,
+        features_indices=FEATURES_INDICES,
+        features_vocabulary_size=FEATURES_VOCABULARY_SIZE,
+        features_embedding_size=FEATURES_EMBEDDING_SIZE,
+        features_lstm_units=FEATURES_LSTM_UNITS,
+        **kwargs
+    )
+
+
+def _features_inputs(batch_size: int = 2, sequence_length: int = 4) -> Dict[str, Any]:
+    torch.manual_seed(11)
+    return {
+        'char_input': torch.randint(
+            0, int(REFERENCE_CONFIG['char_vocab_size']), (batch_size, sequence_length, 6)
+        ),
+        'features_input': torch.randint(
+            0, FEATURES_VOCABULARY_SIZE, (batch_size, sequence_length, len(FEATURES_INDICES))
+        )
+    }
+
+
+class TestCustomBidLSTMCRFFeatures:
+    def test_should_embed_features_rather_than_concatenate_them(self):
+        model = CustomBidLSTM_CRF_FEATURES(_features_model_config(), NTAGS)
+        # one shared embedding, sized for every value of every feature plus padding
+        assert model.features_embedding.num_embeddings == (
+            FEATURES_VOCABULARY_SIZE * len(FEATURES_INDICES) + 1
+        )
+        assert model.features_embedding.padding_idx == 0
+
+    def test_should_size_the_word_lstm_from_the_features_lstm(self):
+        model = CustomBidLSTM_CRF_FEATURES(_features_model_config(), NTAGS)
+        char_output_size = 4 * 2
+        assert model.word_lstm.input_size == char_output_size + FEATURES_LSTM_UNITS * 2
+
+    def test_should_use_the_plain_crf_not_the_chain_crf(self):
+        # the Keras model used the default CRF wrapper, unlike CustomBidLSTM_CRF
+        assert CustomBidLSTM_CRF_FEATURES.use_crf is True
+        assert CustomBidLSTM_CRF_FEATURES.use_chain_crf is False
+
+    def test_should_produce_logits_of_the_expected_shape(self):
+        model = CustomBidLSTM_CRF_FEATURES(_features_model_config(), NTAGS)
+        model.eval()
+        outputs = model(_features_inputs())
+        assert outputs['logits'].shape == (2, 4, NTAGS)
+
+    def test_should_decode_a_tag_for_every_token_as_a_tensor(self):
+        model = CustomBidLSTM_CRF_FEATURES(_features_model_config(), NTAGS)
+        model.eval()
+        decoded = model.decode(_features_inputs())
+        # the tagger and the scorer expect a tensor, as ChainCRF returns
+        assert isinstance(decoded, torch.Tensor)
+        assert decoded.shape == (2, 4)
+
+    def test_should_reduce_the_loss_over_steps(self):
+        model = CustomBidLSTM_CRF_FEATURES(_features_model_config(), NTAGS)
+        inputs = _features_inputs()
+        labels = torch.randint(1, NTAGS, (2, 4))
+        optimizer = Adam(model.parameters(), lr=0.05)
+        first_loss = model(inputs, labels)['loss'].item()
+        for _ in range(5):
+            optimizer.zero_grad()
+            loss = model(inputs, labels)['loss']
+            loss.backward()
+            optimizer.step()
+        assert loss.item() < first_loss
+
+    def test_should_be_built_by_get_model(self):
+        preprocessor = MagicMock(name='preprocessor')
+        model_config = _features_model_config()
+        model = get_model(model_config, preprocessor, ntags=NTAGS)
+        assert isinstance(model, CustomBidLSTM_CRF_FEATURES)
+        assert model_config.use_chain_crf is False
+        assert preprocessor.return_features is True
+
+
+class TestToTagIndicesArray:
+    def test_should_pass_through_a_tensor(self):
+        result = to_tag_indices_array(torch.tensor([[1, 2], [3, 4]]))
+        assert result.tolist() == [[1, 2], [3, 4]]
+
+    def test_should_convert_the_list_the_plain_crf_returns(self):
+        assert to_tag_indices_array([[1, 2], [3, 4]]).tolist() == [[1, 2], [3, 4]]
+
+
+class TestGetModelForUpstreamArchitecture:
+    def test_should_configure_the_preprocessor_for_an_upstream_architecture(self):
+        # the delegating path used to skip this, leaving the data generator
+        # without the features the architecture requires
+        preprocessor = MagicMock(name='preprocessor')
+        model_config = _features_model_config(
+            architecture=BidLSTM_CRF_FEATURES.name
+        )
+        get_model(model_config, preprocessor, ntags=NTAGS)
+        assert preprocessor.return_features is True
+        assert model_config.use_crf is True
+        assert model_config.use_chain_crf is False

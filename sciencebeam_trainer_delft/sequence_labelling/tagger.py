@@ -19,8 +19,10 @@ from sciencebeam_trainer_delft.utils.progress_logger import logging_tqdm
 
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig
 from sciencebeam_trainer_delft.sequence_labelling.data_generator import DataGenerator
+from sciencebeam_trainer_delft.sequence_labelling.models import to_tag_indices_array
 from sciencebeam_trainer_delft.sequence_labelling.data_loader_torch import (
     get_input_names,
+    get_long_input_names,
     to_model_inputs
 )
 
@@ -114,6 +116,7 @@ def iter_predict_texts_with_sliding_window_if_enabled(
 
     model.eval()
     input_names = get_input_names(predict_generator)
+    long_input_names = get_long_input_names(preprocessor)
     prediction_list_list: List[List[np.ndarray]] = [[] for _ in texts]
     batch_window_indices_and_offsets_iterable = logging_tqdm(
         iter_batch_window_indices_and_offsets(
@@ -134,11 +137,12 @@ def iter_predict_texts_with_sliding_window_if_enabled(
             batch_window_indices_and_offsets
         )
         LOGGER.debug('predict on batch: %d', len(batch_window_indices_and_offsets))
-        batch_predictions = np.asarray(
-            model.decode(
-                to_model_inputs(input_names, generator_output[0], device=device)
-            ).cpu()
-        )
+        batch_predictions = to_tag_indices_array(model.decode(
+            to_model_inputs(
+                input_names, generator_output[0], device=device,
+                long_input_names=long_input_names
+            )
+        ))
         LOGGER.debug('preds.shape: %s', batch_predictions.shape)
         for window_indices_and_offsets, seq_predictions in zip(
             batch_window_indices_and_offsets, batch_predictions
