@@ -16,7 +16,7 @@ import numpy as np
 import torch
 from torch import nn
 from torch.optim import Adam, Optimizer
-from torch.optim.lr_scheduler import ExponentialLR
+from torch.optim.lr_scheduler import LambdaLR
 
 from delft.sequenceLabelling.preprocess import Preprocessor
 
@@ -37,6 +37,13 @@ LOGGER = logging.getLogger(__name__)
 
 
 CHECKPOINT_DIRECTORY_NAME_FORMAT = 'epoch-{epoch:05d}'
+
+# delft 0.4.3 decayed the learning rate to a tenth of its initial value across
+# the whole run, per step, with this rate hardcoded: `lr_decay` never reached
+# the schedule. Decaying by `lr_decay` per epoch instead would depend on
+# max_epoch, and at the 300 epochs the documented Vertex AI run uses it would
+# reach 1e-14 and stop training long before the end.
+LEARNING_RATE_DECAY_RATE = 0.1
 
 
 class MetaKeys:
@@ -136,8 +143,7 @@ class Trainer:
         self.optimizer: Optimizer = Adam(
             model.parameters(), lr=training_config.learning_rate
         )
-        # matches the exponential decay the Keras path applied per epoch
-        self.scheduler = ExponentialLR(self.optimizer, gamma=training_config.lr_decay)
+        self.scheduler: Optional[LambdaLR] = None
         self.early_stopping = EarlyStopping(
             patience=training_config.patience,
             initial_meta=training_config.initial_meta
@@ -163,6 +169,19 @@ class Trainer:
         interval = self.training_config.checkpoint_epoch_interval or 1
         return (epoch + 1) % interval == 0
 
+    def create_scheduler(self, steps_per_epoch: int) -> LambdaLR:
+        """Decays the learning rate per step, over the length of the whole run.
+
+        The step count is the one the run was configured for, not the epochs
+        left after a resume, which is how the Keras schedule behaved.
+        """
+        total_steps = max(1, steps_per_epoch * self.training_config.max_epoch)
+
+        def get_learning_rate_factor(step: int) -> float:
+            return LEARNING_RATE_DECAY_RATE ** (step / total_steps)
+
+        return LambdaLR(self.optimizer, lr_lambda=get_learning_rate_factor)
+
     def train_epoch(self, data_loader) -> float:
         self.model.train()
         total_loss = 0.0
@@ -176,6 +195,8 @@ class Trainer:
                     self.model.parameters(), self.training_config.clip_gradients
                 )
             self.optimizer.step()
+            if self.scheduler is not None:
+                self.scheduler.step()
             total_loss += loss.item()
             batch_count += 1
         return total_loss / max(batch_count, 1)
@@ -183,10 +204,10 @@ class Trainer:
     def train(self, data_loader) -> Dict[str, float]:
         initial_epoch = self.training_config.initial_epoch or 0
         max_epoch = self.training_config.max_epoch
+        self.scheduler = self.create_scheduler(steps_per_epoch=len(data_loader))
         history: Dict[str, float] = {}
         for epoch in range(initial_epoch, max_epoch):
             loss = self.train_epoch(data_loader)
-            self.scheduler.step()
             history[f'epoch_{epoch}_loss'] = loss
             score = self.scorer(self.model) if self.scorer is not None else None
             LOGGER.info('epoch %d: loss=%.4f score=%s', epoch, loss, score)

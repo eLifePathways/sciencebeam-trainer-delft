@@ -125,10 +125,37 @@ class TestTrainer:
         losses = [history[f'epoch_{epoch}_loss'] for epoch in range(5)]
         assert losses[-1] < losses[0]
 
-    def test_should_decay_the_learning_rate_each_epoch(self):
-        trainer = Trainer(_model(), _training_config(max_epoch=2, lr_decay=0.5))
-        trainer.train(_batches(count=1))
-        assert trainer.optimizer.param_groups[0]['lr'] == pytest.approx(0.05 * 0.25)
+    def test_should_decay_the_learning_rate_to_a_tenth_over_the_run(self):
+        # what delft 0.4.3 did, and independent of max_epoch
+        trainer = Trainer(_model(), _training_config(max_epoch=4))
+        trainer.train(_batches(count=3))
+        assert trainer.optimizer.param_groups[0]['lr'] == pytest.approx(0.05 * 0.1)
+
+    def test_should_decay_the_learning_rate_per_step_not_per_epoch(self):
+        trainer = Trainer(_model(), _training_config(max_epoch=2))
+        trainer.train(_batches(count=2))
+        # four steps in total, so halfway through is one epoch plus one step
+        assert trainer.scheduler is not None
+        assert trainer.scheduler.get_last_lr()[0] == pytest.approx(0.05 * 0.1)
+
+    def test_should_not_use_lr_decay_for_the_schedule(self):
+        # 0.4.3 hardcoded the decay rate; lr_decay never reached the schedule
+        learning_rates = []
+        for lr_decay in [0.5, 0.9]:
+            trainer = Trainer(
+                _model(), _training_config(max_epoch=2, lr_decay=lr_decay)
+            )
+            trainer.train(_batches(count=2))
+            learning_rates.append(trainer.optimizer.param_groups[0]['lr'])
+        assert learning_rates[0] == pytest.approx(learning_rates[1])
+
+    def test_should_keep_the_learning_rate_usable_over_a_long_run(self):
+        # decaying by lr_decay per epoch would reach 1e-14 here
+        trainer = Trainer(_model(), _training_config(max_epoch=300))
+        scheduler = trainer.create_scheduler(steps_per_epoch=10)
+        for _ in range(300 * 10):
+            scheduler.step()
+        assert trainer.optimizer.param_groups[0]['lr'] == pytest.approx(0.05 * 0.1)
 
     def test_should_save_a_checkpoint_every_epoch_by_default(self):
         save_checkpoint = MagicMock(name='save_checkpoint')
