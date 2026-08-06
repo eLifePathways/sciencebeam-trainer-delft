@@ -9,8 +9,10 @@ PIP = $(UV) pip
 PYTHON = PATH=$(VENV)/bin:$$PATH $(VENV)/bin/python
 
 # the cpu and gpu extras conflict, so --all-extras is not usable and the
-# extras are named; TORCH_EXTRA selects which torch wheel to install
-TORCH_EXTRA = cpu
+# extras are named; TORCH_EXTRA selects which torch wheel to install.
+# `?=` so that `TORCH_EXTRA=gpu make build` reaches docker compose: a plain
+# assignment would override the environment and re-export its own value
+TORCH_EXTRA ?= cpu
 UV_SYNC_EXTRAS = --extra delft --extra gcs --extra $(TORCH_EXTRA)
 
 BATCH_SIZE = 10
