@@ -25,6 +25,7 @@ gcs = [
 ]
 delft = [
     "delft>=1.0.1",
+    "h5py>=3.16.0",
 ]
 # torch is declared directly so [tool.uv.sources] applies: uv sources are not
 # honoured for a transitive requirement, so relying on delft's own
