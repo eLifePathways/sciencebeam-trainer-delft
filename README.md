@@ -56,13 +56,26 @@ To convert once rather than on every load, write a converted copy:
 
 ```bash
 python -m sciencebeam_trainer_delft.sequence_labelling.tools.convert_tf_model \
-    --source-model-path=path/or/url/to/model \
-    --output-path=path/to/converted/model
+    --source-model-path=https://github.com/elifesciences/sciencebeam-models/releases/download/v0.0.1/2020-10-04-delft-grobid-header-biorxiv-no-word-embedding.tar.gz \
+    --output-path=data/models/converted/header
 ```
 
-The source may be a directory or a `.tar.gz`, local or a URL. The output
-directory holds the same configuration and preprocessor with a torch weights
-file, and records what it was converted from in `meta.json`.
+The source may be a directory or a `.tar.gz`, either local or a URL. The output
+directory holds the same configuration and preprocessor alongside a torch weights
+file, and records in `meta.json` what it was converted from - the source as given,
+so a URL stays a URL.
+
+The converted model is then used like any other, for tagging, evaluation or as a
+`--transfer-source-model-path`:
+
+```bash
+python -m sciencebeam_trainer_delft.sequence_labelling.grobid_trainer \
+    tag \
+    --model-path=data/models/converted/header \
+    --input=https://github.com/elifesciences/sciencebeam-datasets/releases/download/v0.0.1/delft-grobid-0.5.6-header.test.gz \
+    --limit=1 \
+    --tag-output-format=xml
+```
 
 ## Example Notebooks
 
