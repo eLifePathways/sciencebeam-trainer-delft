@@ -72,7 +72,7 @@ The converted model is then used like any other, for tagging, evaluation or as a
 python -m sciencebeam_trainer_delft.sequence_labelling.grobid_trainer \
     tag \
     --model-path=data/models/converted/header \
-    --input=https://github.com/elifesciences/sciencebeam-datasets/releases/download/v0.0.1/delft-grobid-0.5.6-header.test.gz \
+    --input=https://github.com/elifesciences/sciencebeam-datasets/releases/download/grobid-0.9.0/delft-grobid-0.9.0-header.train.gz \
     --limit=1 \
     --tag-output-format=xml
 ```
