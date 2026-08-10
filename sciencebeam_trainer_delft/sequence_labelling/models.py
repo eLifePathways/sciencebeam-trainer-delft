@@ -26,6 +26,7 @@ from delft.utilities.crf_pytorch import CRF, ChainCRF
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig
 from sciencebeam_trainer_delft.sequence_labelling.upstream_patches import (
     patch_bid_lstm_crf_char_masking,
+    patch_bid_lstm_crf_token_masking,
     patch_chain_crf_eager_build
 )
 
@@ -41,8 +42,10 @@ patch_chain_crf_eager_build()
 
 # upstream's shared CharacterEncoder implements the unmasked behaviour, which
 # is right for every architecture here except BidLSTM_CRF, whose Keras
-# counterpart set mask_zero=True
+# counterpart set mask_zero=True. That mask reached the word LSTM too, so
+# without it a document's predictions depend on what it is batched with
 patch_bid_lstm_crf_char_masking()
+patch_bid_lstm_crf_token_masking()
 
 
 class CharacterEncoder(nn.Module):

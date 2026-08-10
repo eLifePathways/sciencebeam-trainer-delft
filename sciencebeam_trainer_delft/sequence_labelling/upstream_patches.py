@@ -7,11 +7,12 @@ strict xfails and will go red on such a release, which is the prompt to delete
 the patch rather than to leave it running.
 """
 import logging
-from typing import Optional
+from typing import Dict, Optional
 
 import torch
 from torch import nn
 
+from delft.sequenceLabelling.config import ModelConfig
 from delft.sequenceLabelling.models import BidLSTM_CRF, CharacterEncoder
 from delft.utilities.crf_pytorch import ChainCRF
 
@@ -126,3 +127,125 @@ def patch_bid_lstm_crf_char_masking():
         _bid_lstm_crf_init_with_char_masking
     )
     LOGGER.info('patched BidLSTM_CRF to mask padded characters')
+
+
+# kept so that the tests guarding the upstream defect can restore them
+ORIGINAL_BID_LSTM_CRF_FORWARD = BidLSTM_CRF.forward
+ORIGINAL_BID_LSTM_CRF_DECODE = BidLSTM_CRF.decode
+
+
+def _get_token_mask(inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
+    """Marks the token positions that are not padding.
+
+    Keras derived this from the character embedding's own mask, reduced over
+    the character axis, so a token counts as padding when every one of its
+    characters does. Taking it from `char_input` rather than from the `length`
+    input reproduces that, and works whether or not a length was supplied.
+    """
+    mask = (inputs['char_input'] != 0).any(dim=-1)
+    # the CRF requires the first position of every sequence to be unmasked; a
+    # sequence that is padding throughout would otherwise be rejected outright
+    mask[:, 0] = True
+    return mask
+
+
+def _run_masked_lstm(
+    lstm: nn.LSTM, x: torch.Tensor, mask: torch.Tensor
+) -> torch.Tensor:
+    lengths = mask.sum(dim=1)
+    packed = nn.utils.rnn.pack_padded_sequence(
+        x, lengths.clamp(min=1).cpu(), batch_first=True, enforce_sorted=False
+    )
+    packed_output, _ = lstm(packed)
+    output, _ = nn.utils.rnn.pad_packed_sequence(
+        packed_output, batch_first=True, total_length=x.shape[1]
+    )
+    return output
+
+
+def _bid_lstm_crf_forward_with_token_masking(
+    self, inputs: Dict[str, torch.Tensor], labels: Optional[torch.Tensor] = None
+) -> Dict[str, torch.Tensor]:
+    mask = _get_token_mask(inputs)
+    char_encoded = self.char_encoder(inputs['char_input'])
+    x = torch.cat([inputs['word_input'], char_encoded], dim=-1)
+    x = self.dropout(x)
+    lstm_output = self.dropout(_run_masked_lstm(self.bilstm, x, mask))
+    emissions = self.linear(torch.tanh(self.dense(lstm_output)))
+    outputs = {'logits': emissions}
+    if labels is not None:
+        outputs['loss'] = self.crf(emissions, labels, mask=mask)
+    return outputs
+
+
+def _bid_lstm_crf_decode_with_token_masking(
+    self, inputs: Dict[str, torch.Tensor]
+) -> torch.Tensor:
+    with torch.no_grad():
+        mask = _get_token_mask(inputs)
+        emissions = self.forward(inputs)['logits']
+        decoded = self.crf.decode(emissions, mask=mask)
+    # a masked decode returns one list per sequence, of that sequence's length;
+    # the caller expects one tag per position, so the padding is filled back in
+    sequence_length = emissions.shape[1]
+    return torch.tensor([
+        tags + [0] * (sequence_length - len(tags))
+        for tags in decoded
+    ])
+
+
+def is_bid_lstm_crf_token_masking_required() -> bool:
+    """Reports whether padding a batch changes the real positions' logits.
+
+    Under Keras the mask reached the word LSTM, so a document scored the same
+    whatever it was batched with. Without it the backward direction starts in
+    the padding and runs back through it before reaching any real token, so the
+    padding reaches every position rather than only its own.
+    """
+    config = ModelConfig(
+        architecture='BidLSTM_CRF',
+        word_embedding_size=2,
+        char_emb_size=3,
+        char_lstm_units=2,
+        word_lstm_units=2,
+        dropout=0.0,
+        recurrent_dropout=0.0,
+        use_crf=True,
+        use_chain_crf=False
+    )
+    config.char_vocab_size = 4
+    model = BidLSTM_CRF(config, 3)
+    model.eval()
+    char_input = torch.tensor([[[1, 2], [3, 1], [0, 0]]])
+    inputs = {
+        'word_input': torch.zeros(1, 3, 2),
+        'char_input': char_input
+    }
+    unpadded = {
+        'word_input': torch.zeros(1, 2, 2),
+        'char_input': char_input[:, :2]
+    }
+    with torch.no_grad():
+        padded_logits = model(inputs)['logits'][:, :2]
+        unpadded_logits = model(unpadded)['logits']
+    return not torch.allclose(padded_logits, unpadded_logits, atol=1e-6)
+
+
+def patch_bid_lstm_crf_token_masking():
+    """Restore the token masking `BidLSTM_CRF` had under Keras.
+
+    Without it the word LSTM runs through the padded token positions, so a
+    document's predictions depend on what it happens to be batched with. The
+    character masking alone is not enough: it fixes what each token encodes to,
+    not whether padded tokens take part in the sequence over them.
+    """
+    if not is_bid_lstm_crf_token_masking_required():
+        LOGGER.debug('BidLSTM_CRF already masks padded tokens')
+        return
+    BidLSTM_CRF.forward = (  # type: ignore[method-assign]
+        _bid_lstm_crf_forward_with_token_masking
+    )
+    BidLSTM_CRF.decode = (  # type: ignore[method-assign]
+        _bid_lstm_crf_decode_with_token_masking
+    )
+    LOGGER.info('patched BidLSTM_CRF to mask padded tokens')

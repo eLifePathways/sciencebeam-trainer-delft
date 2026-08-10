@@ -9,11 +9,15 @@ from delft.sequenceLabelling.models import BidLSTM_ChainCRF, BidLSTM_CRF
 from delft.utilities.crf_pytorch import ChainCRF
 
 from sciencebeam_trainer_delft.sequence_labelling.upstream_patches import (
+    ORIGINAL_BID_LSTM_CRF_DECODE,
+    ORIGINAL_BID_LSTM_CRF_FORWARD,
     ORIGINAL_BID_LSTM_CRF_INIT,
     ORIGINAL_CHAIN_CRF_INIT,
+    is_bid_lstm_crf_token_masking_required,
     is_char_encoder_masking_required,
     is_chain_crf_eager_build_required,
     patch_bid_lstm_crf_char_masking,
+    patch_bid_lstm_crf_token_masking,
     patch_chain_crf_eager_build
 )
 
@@ -48,9 +52,15 @@ def _restore_chain_crf() -> Iterator[None]:
 def _restore_bid_lstm_crf() -> Iterator[None]:
     """Starts each test from upstream's own BidLSTM_CRF, as above."""
     patched_init = BidLSTM_CRF.__init__
+    patched_forward = BidLSTM_CRF.forward
+    patched_decode = BidLSTM_CRF.decode
     BidLSTM_CRF.__init__ = ORIGINAL_BID_LSTM_CRF_INIT  # type: ignore[method-assign]
+    BidLSTM_CRF.forward = ORIGINAL_BID_LSTM_CRF_FORWARD  # type: ignore[method-assign]
+    BidLSTM_CRF.decode = ORIGINAL_BID_LSTM_CRF_DECODE  # type: ignore[method-assign]
     yield
     BidLSTM_CRF.__init__ = patched_init  # type: ignore[method-assign]
+    BidLSTM_CRF.forward = patched_forward  # type: ignore[method-assign]
+    BidLSTM_CRF.decode = patched_decode  # type: ignore[method-assign]
 
 
 @pytest.fixture(name='bid_lstm_crf_config')
@@ -180,7 +190,7 @@ class TestPatchBidLstmCrfCharMasking:
             encoded = encoder(torch.tensor([[[0, 0, 0]]]))
         assert torch.allclose(encoded, torch.zeros_like(encoded))
 
-    def test_should_not_apply_twice(self, bid_lstm_crf_config: ModelConfig):
+    def test_should_not_apply_twice(self):
         patch_bid_lstm_crf_char_masking()
         patched_init = BidLSTM_CRF.__init__
         patch_bid_lstm_crf_char_masking()
@@ -194,3 +204,57 @@ class TestPatchBidLstmCrfCharMasking:
         assert is_char_encoder_masking_required()
         patch_bid_lstm_crf_char_masking()
         assert is_char_encoder_masking_required()
+
+
+class TestPatchBidLstmCrfTokenMasking:
+    def test_should_make_a_documents_logits_independent_of_batch_padding(
+        self, bid_lstm_crf_config: ModelConfig
+    ):
+        patch_bid_lstm_crf_token_masking()
+        model = BidLSTM_CRF(bid_lstm_crf_config, NTAGS)
+        model.eval()
+        char_input = torch.tensor([[[1, 2], [3, 1], [0, 0]]])
+        padded = {'word_input': torch.zeros(1, 3, 8), 'char_input': char_input}
+        unpadded = {'word_input': torch.zeros(1, 2, 8), 'char_input': char_input[:, :2]}
+        with torch.no_grad():
+            assert torch.allclose(
+                model(padded)['logits'][:, :2], model(unpadded)['logits'], atol=1e-6
+            )
+
+    def test_should_decode_one_tag_per_position_including_padding(
+        self, bid_lstm_crf_config: ModelConfig
+    ):
+        # a masked decode returns only the real positions, where the caller
+        # expects a rectangular result it can trim itself
+        patch_bid_lstm_crf_token_masking()
+        model = BidLSTM_CRF(bid_lstm_crf_config, NTAGS)
+        model.eval()
+        inputs = {
+            'word_input': torch.zeros(2, 3, 8),
+            'char_input': torch.tensor([[[1, 2], [3, 1], [0, 0]], [[1, 1], [2, 3], [1, 2]]])
+        }
+        decoded = model.decode(inputs)
+        assert torch.as_tensor(decoded).shape == (2, 3)
+
+    def test_should_leave_bid_lstm_chain_crf_alone(self, model_config: ModelConfig):
+        patch_bid_lstm_crf_token_masking()
+        model = BidLSTM_ChainCRF(model_config, NTAGS)
+        model.eval()
+        char_input = torch.tensor([[[1, 2], [3, 1], [0, 0]]])
+        padded = {'word_input': torch.zeros(1, 3, 8), 'char_input': char_input}
+        unpadded = {'word_input': torch.zeros(1, 2, 8), 'char_input': char_input[:, :2]}
+        with torch.no_grad():
+            assert not torch.allclose(
+                model(padded)['logits'][:, :2], model(unpadded)['logits'], atol=1e-6
+            )
+
+    def test_should_not_apply_twice(self):
+        patch_bid_lstm_crf_token_masking()
+        patched_forward = BidLSTM_CRF.forward
+        patch_bid_lstm_crf_token_masking()
+        assert BidLSTM_CRF.forward is patched_forward
+
+    def test_should_report_the_defect_as_no_longer_present_once_patched(self):
+        assert is_bid_lstm_crf_token_masking_required()
+        patch_bid_lstm_crf_token_masking()
+        assert not is_bid_lstm_crf_token_masking_required()

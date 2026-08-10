@@ -16,7 +16,11 @@ from torch import nn
 from torch.optim import Adam
 
 from delft.sequenceLabelling.config import ModelConfig
-from delft.sequenceLabelling.models import BidLSTM_ChainCRF, CharacterEncoder
+from delft.sequenceLabelling.models import (
+    BidLSTM_ChainCRF,
+    BidLSTM_CRF,
+    CharacterEncoder
+)
 from delft.utilities.crf_pytorch import ChainCRF
 
 from sciencebeam_trainer_delft.sequence_labelling import upstream_patches
@@ -138,6 +142,39 @@ class TestRecurrentDropout:
         ]
 
 
+@pytest.fixture(name='unpatched_bid_lstm_crf', autouse=True)
+def _unpatched_bid_lstm_crf():
+    """Restores upstream's own BidLSTM_CRF for the duration of each test.
+
+    Importing the models module patches it for the rest of the process, so
+    without this these tests would report on the patch rather than on the
+    installed delft, and the strict xfails would pass unexpectedly.
+    """
+    patched = (BidLSTM_CRF.__init__, BidLSTM_CRF.forward, BidLSTM_CRF.decode)
+    BidLSTM_CRF.__init__ = (  # type: ignore[method-assign]
+        upstream_patches.ORIGINAL_BID_LSTM_CRF_INIT
+    )
+    BidLSTM_CRF.forward = (  # type: ignore[method-assign]
+        upstream_patches.ORIGINAL_BID_LSTM_CRF_FORWARD
+    )
+    BidLSTM_CRF.decode = (  # type: ignore[method-assign]
+        upstream_patches.ORIGINAL_BID_LSTM_CRF_DECODE
+    )
+    yield
+    (
+        BidLSTM_CRF.__init__,  # type: ignore[method-assign]
+        BidLSTM_CRF.forward,  # type: ignore[method-assign]
+        BidLSTM_CRF.decode  # type: ignore[method-assign]
+    ) = patched
+
+
+@pytest.fixture(name='bid_lstm_crf_config')
+def _bid_lstm_crf_config(model_config: ModelConfig) -> ModelConfig:
+    model_config.architecture = 'BidLSTM_CRF'
+    model_config.use_chain_crf = False
+    return model_config
+
+
 class TestCharacterEncoderMasking:
     @pytest.mark.xfail(
         strict=True,
@@ -152,3 +189,23 @@ class TestCharacterEncoderMasking:
             narrow = encoder(torch.tensor([[[1, 2, 0]]]))
             wide = encoder(torch.tensor([[[1, 2, 0, 0, 0]]]))
         assert torch.allclose(narrow, wide, atol=1e-6)
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason='delft 1.0.1 BidLSTM_CRF runs the word LSTM through padded tokens'
+    )
+    def test_should_not_let_batch_padding_change_a_documents_logits(
+        self, bid_lstm_crf_config: ModelConfig
+    ):
+        # the Keras mask reached the word LSTM, so a document scored the same
+        # whatever it was batched with; the backward direction otherwise starts
+        # in the padding and carries it into every real position
+        model = BidLSTM_CRF(bid_lstm_crf_config, NTAGS)
+        model.eval()
+        char_input = torch.tensor([[[1, 2], [3, 1], [0, 0]]])
+        padded = {'word_input': torch.zeros(1, 3, 8), 'char_input': char_input}
+        unpadded = {'word_input': torch.zeros(1, 2, 8), 'char_input': char_input[:, :2]}
+        with torch.no_grad():
+            assert torch.allclose(
+                model(padded)['logits'][:, :2], model(unpadded)['logits'], atol=1e-6
+            )
