@@ -26,25 +26,13 @@ def load_test_data(filepath: Union[str, Path]) -> dict:
         return yaml.safe_load(f)
 
 
-DELFT_MODELS_ARE_KERAS_REASON = (
-    'the published delft models are Keras hdf5 and there is no TensorFlow to'
-    ' load them with; spec 002 converts them to PyTorch and restores this case'
-)
-
-
-def get_test_case_marks(test_case: dict) -> Sequence[Any]:
-    if test_case.get('engine', 'delft') != 'delft':
-        return []
-    return [pytest.mark.skip(reason=DELFT_MODELS_ARE_KERAS_REASON)]
-
-
 def get_test_cases(
     test_data: dict,
     test_name: str,
     id_key: str = 'id'
 ) -> Sequence[Any]:  # -> Sequence[ParameterSet]:
     return [
-        pytest.param(tc, id=tc.get(id_key), marks=get_test_case_marks(tc))
+        pytest.param(tc, id=tc.get(id_key))
         for tc in test_data[test_name]
     ]
 
