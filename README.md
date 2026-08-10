@@ -34,6 +34,36 @@ apt-get install libsqlite3-dev
 PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install --force 3.9.17
 ```
 
+## Models Saved Before the PyTorch Migration
+
+Model directories written by a release before the PyTorch migration hold a Keras
+`model_weights.hdf5` where the current code writes a torch `model_weights.pt`.
+They keep working: the weights are converted when the model is loaded, in memory,
+so nothing needs to be done to use one and the directory is not modified.
+
+What conversion guarantees is that the converted model computes what the original
+did, not that it is a better or different model. It maps the weights across
+unchanged, and refuses rather than guessing if anything cannot be mapped
+faithfully - an unrecognised layer, a tensor no destination fits, or a shape that
+disagrees. Nothing is re-tuned and no preprocessor is re-fitted.
+
+Conversion is verified against reference output captured from the TensorFlow
+implementation. All twelve `delft` end-to-end regression cases - the eight models
+published from this repo, and GROBID's header models for 0.5.6, 0.6.0, 0.7.0 and
+0.8.2 - reproduce their recorded tagged output and evaluation scores exactly.
+
+To convert once rather than on every load, write a converted copy:
+
+```bash
+python -m sciencebeam_trainer_delft.sequence_labelling.tools.convert_tf_model \
+    --source-model-path=path/or/url/to/model \
+    --output-path=path/to/converted/model
+```
+
+The source may be a directory or a `.tar.gz`, local or a URL. The output
+directory holds the same configuration and preprocessor with a torch weights
+file, and records what it was converted from in `meta.json`.
+
 ## Example Notebooks
 
 - [train-header.ipynb](notebooks/train-header.ipynb) ([open in colab](https://colab.research.google.com/github/elifesciences/sciencebeam-trainer-delft/blob/develop/notebooks/train-header.ipynb))
