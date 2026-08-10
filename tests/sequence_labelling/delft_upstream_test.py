@@ -16,7 +16,7 @@ from torch import nn
 from torch.optim import Adam
 
 from delft.sequenceLabelling.config import ModelConfig
-from delft.sequenceLabelling.models import BidLSTM_ChainCRF
+from delft.sequenceLabelling.models import BidLSTM_ChainCRF, CharacterEncoder
 from delft.utilities.crf_pytorch import ChainCRF
 
 from sciencebeam_trainer_delft.sequence_labelling import upstream_patches
@@ -136,3 +136,19 @@ class TestRecurrentDropout:
             for name, module in model.named_modules()
             if isinstance(module, nn.LSTM) and module.num_layers == 1 and module.dropout
         ]
+
+
+class TestCharacterEncoderMasking:
+    @pytest.mark.xfail(
+        strict=True,
+        reason='delft 1.0.1 CharacterEncoder runs the LSTM through the padding'
+    )
+    def test_should_not_let_trailing_padding_change_the_encoding(self):
+        # the Keras BidLSTM_CRF set mask_zero=True on its character embedding,
+        # so the same token encodes identically whatever window it sits in
+        encoder = CharacterEncoder(CHAR_VOCAB_SIZE, 4, 3)
+        encoder.eval()
+        with torch.no_grad():
+            narrow = encoder(torch.tensor([[[1, 2, 0]]]))
+            wide = encoder(torch.tensor([[[1, 2, 0, 0, 0]]]))
+        assert torch.allclose(narrow, wide, atol=1e-6)

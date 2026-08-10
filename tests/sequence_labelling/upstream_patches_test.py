@@ -5,12 +5,15 @@ import torch
 from torch.optim import Adam
 
 from delft.sequenceLabelling.config import ModelConfig
-from delft.sequenceLabelling.models import BidLSTM_ChainCRF
+from delft.sequenceLabelling.models import BidLSTM_ChainCRF, BidLSTM_CRF
 from delft.utilities.crf_pytorch import ChainCRF
 
 from sciencebeam_trainer_delft.sequence_labelling.upstream_patches import (
+    ORIGINAL_BID_LSTM_CRF_INIT,
     ORIGINAL_CHAIN_CRF_INIT,
+    is_char_encoder_masking_required,
     is_chain_crf_eager_build_required,
+    patch_bid_lstm_crf_char_masking,
     patch_chain_crf_eager_build
 )
 
@@ -39,6 +42,22 @@ def _restore_chain_crf() -> Iterator[None]:
     ChainCRF.__init__ = ORIGINAL_CHAIN_CRF_INIT  # type: ignore[method-assign]
     yield
     ChainCRF.__init__ = patched_init  # type: ignore[method-assign]
+
+
+@pytest.fixture(name='restore_bid_lstm_crf', autouse=True)
+def _restore_bid_lstm_crf() -> Iterator[None]:
+    """Starts each test from upstream's own BidLSTM_CRF, as above."""
+    patched_init = BidLSTM_CRF.__init__
+    BidLSTM_CRF.__init__ = ORIGINAL_BID_LSTM_CRF_INIT  # type: ignore[method-assign]
+    yield
+    BidLSTM_CRF.__init__ = patched_init  # type: ignore[method-assign]
+
+
+@pytest.fixture(name='bid_lstm_crf_config')
+def _bid_lstm_crf_config(model_config: ModelConfig) -> ModelConfig:
+    model_config.architecture = 'BidLSTM_CRF'
+    model_config.use_chain_crf = False
+    return model_config
 
 
 @pytest.fixture(name='model_config')
@@ -117,3 +136,61 @@ class TestPatchChainCrfEagerBuild:
         assert is_chain_crf_eager_build_required()
         patch_chain_crf_eager_build()
         assert not is_chain_crf_eager_build_required()
+
+
+class TestPatchBidLstmCrfCharMasking:
+    def test_should_make_the_encoding_independent_of_trailing_padding(
+        self, bid_lstm_crf_config: ModelConfig
+    ):
+        patch_bid_lstm_crf_char_masking()
+        encoder = BidLSTM_CRF(bid_lstm_crf_config, NTAGS).char_encoder
+        encoder.eval()
+        with torch.no_grad():
+            narrow = encoder(torch.tensor([[[1, 2, 0]]]))
+            wide = encoder(torch.tensor([[[1, 2, 0, 0, 0]]]))
+        assert torch.allclose(narrow, wide, atol=1e-6)
+
+    def test_should_leave_bid_lstm_chain_crf_unmasked(
+        self, model_config: ModelConfig
+    ):
+        # its Keras counterpart set mask_zero=False, and it converts exactly as
+        # upstream stands, so masking it would be the regression
+        patch_bid_lstm_crf_char_masking()
+        encoder = BidLSTM_ChainCRF(model_config, NTAGS).char_encoder
+        encoder.eval()
+        with torch.no_grad():
+            narrow = encoder(torch.tensor([[[1, 2, 0]]]))
+            wide = encoder(torch.tensor([[[1, 2, 0, 0, 0]]]))
+        assert not torch.allclose(narrow, wide, atol=1e-6)
+
+    def test_should_keep_the_state_dict_unchanged(
+        self, bid_lstm_crf_config: ModelConfig
+    ):
+        unpatched_keys = sorted(BidLSTM_CRF(bid_lstm_crf_config, NTAGS).state_dict())
+        patch_bid_lstm_crf_char_masking()
+        assert sorted(BidLSTM_CRF(bid_lstm_crf_config, NTAGS).state_dict()) == unpatched_keys
+
+    def test_should_encode_a_fully_padded_token_as_zeros(
+        self, bid_lstm_crf_config: ModelConfig
+    ):
+        patch_bid_lstm_crf_char_masking()
+        encoder = BidLSTM_CRF(bid_lstm_crf_config, NTAGS).char_encoder
+        encoder.eval()
+        with torch.no_grad():
+            encoded = encoder(torch.tensor([[[0, 0, 0]]]))
+        assert torch.allclose(encoded, torch.zeros_like(encoded))
+
+    def test_should_not_apply_twice(self, bid_lstm_crf_config: ModelConfig):
+        patch_bid_lstm_crf_char_masking()
+        patched_init = BidLSTM_CRF.__init__
+        patch_bid_lstm_crf_char_masking()
+        assert BidLSTM_CRF.__init__ is patched_init
+
+    def test_should_keep_reporting_the_upstream_defect_after_patching(self):
+        # unlike the ChainCRF patch, this one replaces the encoder on one
+        # architecture rather than fixing the shared class, so the detector
+        # goes on reporting the defect -- which is what has to change when
+        # upstream fixes it, and is the signal to drop this patch
+        assert is_char_encoder_masking_required()
+        patch_bid_lstm_crf_char_masking()
+        assert is_char_encoder_masking_required()

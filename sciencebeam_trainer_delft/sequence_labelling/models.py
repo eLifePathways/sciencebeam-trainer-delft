@@ -25,6 +25,7 @@ from delft.utilities.crf_pytorch import CRF, ChainCRF
 
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig
 from sciencebeam_trainer_delft.sequence_labelling.upstream_patches import (
+    patch_bid_lstm_crf_char_masking,
     patch_chain_crf_eager_build
 )
 
@@ -37,6 +38,11 @@ LOGGER = logging.getLogger(__name__)
 # applied here rather than in get_model, so that constructing an architecture
 # directly is safe too
 patch_chain_crf_eager_build()
+
+# upstream's shared CharacterEncoder implements the unmasked behaviour, which
+# is right for every architecture here except BidLSTM_CRF, whose Keras
+# counterpart set mask_zero=True
+patch_bid_lstm_crf_char_masking()
 
 
 class CharacterEncoder(nn.Module):
