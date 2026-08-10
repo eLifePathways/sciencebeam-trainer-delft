@@ -9,6 +9,8 @@ from sciencebeam_trainer_delft.sequence_labelling.models import CustomBidLSTM_CR
 from sciencebeam_trainer_delft.sequence_labelling.saving import ModelLoader, ModelSaver
 from sciencebeam_trainer_delft.utils.download_manager import DownloadManager
 
+from tests.sequence_labelling.keras_weights_helper import write_keras_weights_for_model
+
 
 NTAGS = 5
 CHAR_VOCAB_SIZE = 12
@@ -33,6 +35,11 @@ def _model_config() -> ModelConfig:
         max_feature_size=MAX_FEATURE_SIZE,
         features_embedding_size=0
     )
+
+
+def _crf_transitions(model: CustomBidLSTM_CRF) -> torch.Tensor:
+    """The CRF parameters are registered dynamically, so not statically typed."""
+    return cast(torch.Tensor, model.crf.U)
 
 
 def _inputs():
@@ -117,3 +124,47 @@ class TestModelSaverLoader:
             ModelLoader(download_manager=DownloadManager()).load_model_from_directory(
                 str(temp_dir), model=mismatched_model
             )
+
+
+class TestModelLoaderLegacyWeights:
+    def test_should_convert_tf_era_weights_when_there_is_no_torch_state_dict(
+        self, model_config: ModelConfig, temp_dir: Path
+    ):
+        model = CustomBidLSTM_CRF(model_config, NTAGS)
+        write_keras_weights_for_model(temp_dir / 'model_weights.hdf5', model)
+
+        loaded_model = CustomBidLSTM_CRF(model_config, NTAGS)
+        ModelLoader(download_manager=DownloadManager()).load_model_from_directory(
+            str(temp_dir), model=loaded_model
+        )
+        assert torch.equal(_crf_transitions(loaded_model), _crf_transitions(model))
+        assert torch.equal(loaded_model.dense_ntags.weight, model.dense_ntags.weight)
+
+    def test_should_not_write_to_the_directory_it_loaded_from(
+        self, model_config: ModelConfig, temp_dir: Path
+    ):
+        model = CustomBidLSTM_CRF(model_config, NTAGS)
+        write_keras_weights_for_model(temp_dir / 'model_weights.hdf5', model)
+        before = {path.name for path in temp_dir.iterdir()}
+
+        ModelLoader(download_manager=DownloadManager()).load_model_from_directory(
+            str(temp_dir), model=CustomBidLSTM_CRF(model_config, NTAGS)
+        )
+        assert {path.name for path in temp_dir.iterdir()} == before
+
+    def test_should_prefer_the_torch_state_dict_where_both_are_present(
+        self, model_config: ModelConfig, temp_dir: Path
+    ):
+        torch_model = CustomBidLSTM_CRF(model_config, NTAGS)
+        ModelSaver(preprocessor=cast(Any, None), model_config=model_config).save_to(
+            str(temp_dir), model=torch_model
+        )
+        keras_model = CustomBidLSTM_CRF(model_config, NTAGS)
+        write_keras_weights_for_model(temp_dir / 'model_weights.hdf5', keras_model)
+        assert not torch.equal(_crf_transitions(keras_model), _crf_transitions(torch_model))
+
+        loaded_model = CustomBidLSTM_CRF(model_config, NTAGS)
+        ModelLoader(download_manager=DownloadManager()).load_model_from_directory(
+            str(temp_dir), model=loaded_model
+        )
+        assert torch.equal(_crf_transitions(loaded_model), _crf_transitions(torch_model))
