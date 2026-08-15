@@ -1,6 +1,6 @@
 import logging
 from unittest.mock import MagicMock
-from typing import Dict, List, Optional
+from typing import cast, Dict, List, Optional
 
 import pytest
 
@@ -110,13 +110,13 @@ def get_prediction_by_tag(vocab_tag: Dict[str, int]):
 
 
 def get_predict_on_batch_by_token_fn(
-    tag_by_token_map: Dict[str, List[float]],
+    tag_by_token_map: Dict[str, str],
     preprocessor: WordPreprocessor,
     batch_size: Optional[int] = None
 ):
-    vocab_tag = preprocessor.vocab_tag
+    vocab_tag = cast(Dict[str, int], preprocessor.vocab_tag)
     LOGGER.debug('vocab_tag=%s', vocab_tag)
-    char_by_index_map = {i: c for c, i in preprocessor.vocab_char.items()}
+    char_by_index_map = {i: c for c, i in cast(Dict[str, int], preprocessor.vocab_char).items()}
     prediction_by_tag = get_prediction_by_tag(vocab_tag)
     LOGGER.debug('prediction_by_tag=%s', prediction_by_tag)
 

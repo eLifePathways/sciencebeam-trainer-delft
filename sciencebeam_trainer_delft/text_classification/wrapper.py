@@ -26,6 +26,9 @@ DEFAULT_EMBEDDINGS_PATH = 'delft/resources-registry.json'
 
 
 class Classifier(_Classifier):
+    # narrow the inherited attribute to our ModelConfig subclass
+    model_config: ModelConfig
+
     def __init__(
         self,
         download_manager: Optional[DownloadManager] = None,
@@ -99,8 +102,9 @@ class Classifier(_Classifier):
         )
 
         # load embeddings
-        self.embeddings = self.get_embedding_for_model_config(self.model_config)
-        self.model_config.word_embedding_size = self.embeddings.embed_size
+        embeddings = self.get_embedding_for_model_config(self.model_config)
+        self.embeddings = embeddings
+        self.model_config.word_embedding_size = embeddings.embed_size
 
         self.model = getModel(self.model_config, self.training_config)
         if self.model_config.fold_number == 1:
@@ -112,7 +116,7 @@ class Classifier(_Classifier):
                 self.model
             )
         else:
-            self.models = []
+            models = []
             for i in range(0, self.model_config.fold_number):
                 local_model = getModel(self.model_config, self.training_config)
                 loader.load_model_weights_from_file(
@@ -122,4 +126,5 @@ class Classifier(_Classifier):
                     ),
                     local_model
                 )
-                self.models.append(local_model)
+                models.append(local_model)
+            self.models = models  # type: ignore[assignment]

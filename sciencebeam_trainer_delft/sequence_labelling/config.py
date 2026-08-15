@@ -128,7 +128,7 @@ class TrainingConfig(_TrainingConfig):
         initial_meta: Optional[dict] = None,
         **kwargs
     ):
-        super().__init__(*args, learning_rate=learning_rate, **kwargs)
+        super().__init__(*args, learning_rate=learning_rate, **kwargs)  # type: ignore[misc]
         self.initial_epoch = initial_epoch
         self.input_window_stride = input_window_stride
         self.checkpoint_epoch_interval = checkpoint_epoch_interval

@@ -444,6 +444,34 @@ class TestGrobidTrainerUtils:
             )
 
         @log_on_exception
+        def test_should_be_able_to_train_upstream_architecture_without_word_embeddings(
+                self, default_args: dict, default_model_directory: str):
+            # Unlike the test above (which uses our CustomBidLSTM_CRF), this trains an
+            # upstream delft architecture (built via delft's own get_model) with no word
+            # embeddings, exercising the make-embeddings-optional support end-to-end.
+            # Passing embeddings_name=None is the upstream way to disable word embeddings
+            # (delft's Sequence sets word_embedding_size=0), rather than our
+            # use_word_embeddings flag.
+            train(
+                **cast(TrainArgsDict, {
+                    **default_args,
+                    'architecture': 'BidLSTM_CRF',
+                    'embeddings_name': None
+                })
+            )
+            model_config = load_model_config(default_model_directory)
+            assert model_config.architecture == 'BidLSTM_CRF'
+            assert model_config.embeddings_name is None
+            assert model_config.word_embedding_size == 0
+            tag_input(
+                model_name=default_args['model_name'],
+                model_path=default_model_directory,
+                input_paths=default_args['input_paths'],
+                download_manager=default_args['download_manager'],
+                embedding_registry_path=default_args['embedding_registry_path']
+            )
+
+        @log_on_exception
         def test_should_be_able_to_train_with_additional_token_feature_indices(
                 self, default_args: dict, default_model_directory: str):
             train(

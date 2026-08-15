@@ -31,7 +31,7 @@ from sciencebeam_trainer_delft.sequence_labelling.typing import (
 from sciencebeam_trainer_delft.utils.keras.callbacks import ResumableEarlyStopping
 
 from sciencebeam_trainer_delft.sequence_labelling.evaluation import classification_report
-from sciencebeam_trainer_delft.sequence_labelling.config import TrainingConfig
+from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig, TrainingConfig
 from sciencebeam_trainer_delft.sequence_labelling.data_generator import DataGenerator
 from sciencebeam_trainer_delft.sequence_labelling.callbacks import ModelWithMetadataCheckpoint
 from sciencebeam_trainer_delft.sequence_labelling.saving import ModelSaver
@@ -81,7 +81,7 @@ def get_callbacks(
     callbacks = []
 
     if valid:
-        callbacks.append(Scorer(  # pylint: disable=no-value-for-parameter
+        callbacks.append(Scorer(  # type: ignore[misc]  # pylint: disable=no-value-for-parameter
             *valid,
             use_crf=use_crf,
             use_chain_crf=use_chain_crf
@@ -230,6 +230,10 @@ class Scorer(_Scorer):
 
 
 class Trainer(_Trainer):
+    # narrow the inherited attribute to our ModelConfig, which adds the extra
+    # fields (stateful, text_feature_indices, ...) our data generator relies on
+    model_config: ModelConfig
+
     def __init__(
             self,
             *args,
@@ -240,9 +244,9 @@ class Trainer(_Trainer):
         self.model_saver = model_saver
         self.multiprocessing = multiprocessing
         self.model: Optional[BaseModel] = None
-        super().__init__(*args, training_config=training_config, **kwargs)
+        super().__init__(*args, training_config=training_config, **kwargs)  # type: ignore[misc]
 
-    def train(  # pylint: disable=arguments-differ
+    def train(  # type: ignore[override]  # pylint: disable=arguments-differ
         self,
         x_train,
         y_train,
@@ -300,7 +304,7 @@ class Trainer(_Trainer):
             **kwargs
         )
 
-    def train_model(  # pylint: disable=arguments-differ
+    def train_model(  # type: ignore[override]  # pylint: disable=arguments-differ
         self,
         local_model,
         x_train: T_Batch_Token_Array,
@@ -384,7 +388,7 @@ class Trainer(_Trainer):
 
         return local_model
 
-    def train_nfold(  # pylint: disable=arguments-differ
+    def train_nfold(  # type: ignore[override]  # pylint: disable=arguments-differ
         self,
         x_train: T_Batch_Token_Array,
         y_train: T_Batch_Label_Array,

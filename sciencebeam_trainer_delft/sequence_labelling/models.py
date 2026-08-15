@@ -180,7 +180,7 @@ class CustomBidLSTM_CRF(CustomModel):
                     mask
                 )
 
-            self.crf.loss = _masked_chain_crf_loss
+            self.crf.loss = _masked_chain_crf_loss  # type: ignore[method-assign]
 
         self.config = config
 

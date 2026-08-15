@@ -103,7 +103,7 @@ def get_preprocessor_json(preprocessor: DelftWordPreprocessor) -> dict:
 
 def get_feature_preprocessor_for_json(feature_preprocessor_json: dict) -> T_FeaturesPreprocessor:
     if not feature_preprocessor_json:
-        return None
+        return None  # type: ignore[return-value]
     LOGGER.debug('feature_preprocessor_json: %s', feature_preprocessor_json)
     feature_preprocessor = from_json(feature_preprocessor_json, DelftFeaturesPreprocessor)
     if isinstance(feature_preprocessor, DelftFeaturesPreprocessor):

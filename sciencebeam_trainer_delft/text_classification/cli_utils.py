@@ -112,7 +112,12 @@ def load_label_data(
 
 def _patch_delft():
     # delft.textClassification.models.Attention = Attention
-    delft.textClassification.wrapper.train_model = train_model
+    # FIXME: delft>=0.4.6 (make-embeddings-optional branch) no longer exposes a
+    #   module-level ``train_model``; text classification training folded it into
+    #   ``Classifier.train()``. This monkey-patch (and the callbacks injection
+    #   below) therefore has no effect on that branch and needs reworking before
+    #   we can rely on upstream for text classification. See upstream feedback.
+    delft.textClassification.wrapper.train_model = train_model  # type: ignore[attr-defined]
 
 
 def train(
@@ -133,7 +138,9 @@ def train(
     )
     model.embeddings_name = model_config.embeddings_name
     model.model_config = model_config
-    model.model_config.word_embedding_size = model.embeddings.embed_size
+    model.model_config.word_embedding_size = (
+        model.embeddings.embed_size  # type: ignore[attr-defined]
+    )
     model.training_config = training_config
 
     model_saver = ModelSaver(model_config)
@@ -141,7 +148,7 @@ def train(
         model_saver=model_saver,
         log_dir=training_config.log_dir
     )
-    delft.textClassification.wrapper.train_model = partial(
+    delft.textClassification.wrapper.train_model = partial(  # type: ignore[attr-defined]
         train_model,
         callbacks=callbacks
     )

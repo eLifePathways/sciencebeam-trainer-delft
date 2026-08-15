@@ -36,7 +36,7 @@ class TransferModelWrapper:
         self.keras_model: keras.Model = model.model
         self.keras_layers_by_name: Dict[str, keras.layers.Layer] = {
             layer.name: layer
-            for layer in self.keras_model.layers
+            for layer in self.keras_model.layers  # type: ignore[attr-defined]
         }
         self.layer_names = set(self.keras_layers_by_name.keys())
 

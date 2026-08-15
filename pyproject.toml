@@ -20,6 +20,13 @@ delft = [
     "delft>=0.4.3",
 ]
 
+[tool.uv.sources]
+# Temporarily track the upstream branch that makes word embeddings optional,
+# so we can drop our local workaround. Revert to the released version on PyPI
+# once these changes are published.
+# https://github.com/kermitt2/delft/tree/feature/make-embeddings-optional-master
+delft = { git = "https://github.com/kermitt2/delft.git", branch = "feature/make-embeddings-optional-master" }
+
 [dependency-groups]
 dev = [
     "flake8>=4.0.1",
