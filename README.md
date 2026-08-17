@@ -34,6 +34,78 @@ apt-get install libsqlite3-dev
 PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install --force 3.9.17
 ```
 
+## Installing
+
+Two extras select which PyTorch wheel is installed, and they conflict, so
+exactly one is named:
+
+```bash
+uv sync --extra delft --extra gcs --extra cpu --all-groups   # or --extra gpu
+```
+
+`--all-extras` therefore does not work.
+
+**Depending on this package from another project.** The index that provides the
+CPU wheel is configured here, and uv does not carry a source across to a project
+that depends on this one from a registry - so a downstream project resolves
+`torch` from PyPI, which on Linux is the CUDA build and pulls the whole nvidia
+stack. To get the CPU wheel, repeat the index configuration in that project's
+own `pyproject.toml`:
+
+```toml
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+```
+
+## Models Saved Before the PyTorch Migration
+
+Model directories written by a release before the PyTorch migration hold a Keras
+`model_weights.hdf5` where the current code writes a torch `model_weights.pt`.
+They keep working: the weights are converted when the model is loaded, in memory,
+so nothing needs to be done to use one and the directory is not modified.
+
+What conversion guarantees is that the converted model computes what the original
+did, not that it is a better or different model. It maps the weights across
+unchanged, and refuses rather than guessing if anything cannot be mapped
+faithfully - an unrecognised layer, a tensor no destination fits, or a shape that
+disagrees. Nothing is re-tuned and no preprocessor is re-fitted.
+
+Conversion is verified against reference output captured from the TensorFlow
+implementation. All twelve `delft` end-to-end regression cases - the eight models
+published from this repo, and GROBID's header models for 0.5.6, 0.6.0, 0.7.0 and
+0.8.2 - reproduce their recorded tagged output and evaluation scores exactly.
+
+To convert once rather than on every load, write a converted copy:
+
+```bash
+python -m sciencebeam_trainer_delft.sequence_labelling.tools.convert_tf_model \
+    --source-model-path=https://github.com/elifesciences/sciencebeam-models/releases/download/v0.0.1/2020-10-04-delft-grobid-header-biorxiv-no-word-embedding.tar.gz \
+    --output-path=data/models/converted/header
+```
+
+The source may be a directory or a `.tar.gz`, either local or a URL. The output
+directory holds the same configuration and preprocessor alongside a torch weights
+file, and records in `meta.json` what it was converted from - the source as given,
+so a URL stays a URL.
+
+The converted model is then used like any other, for tagging, evaluation or as a
+`--transfer-source-model-path`:
+
+```bash
+python -m sciencebeam_trainer_delft.sequence_labelling.grobid_trainer \
+    tag \
+    --model-path=data/models/converted/header \
+    --input=https://github.com/elifesciences/sciencebeam-datasets/releases/download/grobid-0.9.0/delft-grobid-0.9.0-header.train.gz \
+    --limit="1" \
+    --tag-output-format="xml" \
+    --quiet
+```
+
 ## Example Notebooks
 
 - [train-header.ipynb](notebooks/train-header.ipynb) ([open in colab](https://colab.research.google.com/github/elifesciences/sciencebeam-trainer-delft/blob/develop/notebooks/train-header.ipynb))
@@ -141,9 +213,9 @@ Layout features are additional features provided with each token, e.g. whether i
 
 The model needs to support using such features. The following models do:
 
-- `BidLSTM_CRF_FEATURES`
 - `CustomBidLSTM_CRF`
-- `CustomBidLSTM_CRF_FEATURES`
+- `BidLSTM_CRF_FEATURES`
+- `CustomBidLSTM_CRF_FEATURES` (deprecated, use `CustomBidLSTM_CRF`)
 
 The features are generally provided. Some of the features are not suitable as input features because there are too many of them (e.g. a variation of the token itself). The features should be specified via `--features-indices`. The `input_info` sub command can help identify useful feature ranges (based on the count of unique values).
 
@@ -811,53 +883,6 @@ By default a single `n1-highmem-8` machine with one `NVIDIA_TESLA_T4` GPU is use
 
 (Alternatively you can train for free using Google Colab, see Example Notebooks above)
 
-## Text Classification
-
-### Train Text Classification
-
-```bash
-python -m sciencebeam_trainer_delft.text_classification \
-    train \
-    --model-path="data/models/textClassification/toxic" \
-    --train-input-limit=100 \
-    --train-input="https://github.com/kermitt2/delft/raw/v0.2.3/data/textClassification/toxic/train.csv"
-```
-
-### Eval Text Classification
-
-```bash
-python -m sciencebeam_trainer_delft.text_classification \
-    eval \
-    --model-path="data/models/textClassification/toxic" \
-    --eval-input-limit=100 \
-    --eval-input="https://github.com/kermitt2/delft/raw/v0.2.3/data/textClassification/toxic/test.csv" \
-    --eval-label-input="https://github.com/kermitt2/delft/raw/v0.2.3/data/textClassification/toxic/test_labels.csv"
-```
-
-### Predict Text Classification
-
-```bash
-python -m sciencebeam_trainer_delft.text_classification \
-    predict \
-    --model-path="data/models/textClassification/toxic" \
-    --predict-input-limit=100 \
-    --predict-input="https://github.com/kermitt2/delft/raw/v0.2.3/data/textClassification/toxic/test.csv" \
-    --predict-output="./data/toxic_test_predictions.tsv"
-```
-
-### Train Eval Text Classification
-
-```bash
-python -m sciencebeam_trainer_delft.text_classification \
-    train_eval \
-    --model-path="data/models/textClassification/toxic" \
-    --train-input-limit=100 \
-    --train-input="https://github.com/kermitt2/delft/raw/v0.2.3/data/textClassification/toxic/train.csv" \
-    --eval-input-limit=100 \
-    --eval-input="https://github.com/kermitt2/delft/raw/v0.2.3/data/textClassification/toxic/test.csv" \
-    --eval-label-input="https://github.com/kermitt2/delft/raw/v0.2.3/data/textClassification/toxic/test_labels.csv"
-```
-
 ## Checkpoints CLI
 
 The checkpoints CLI tool is there to give you a summary of the saved checkpoints. Checkpoints are optionally saved during training, they allow you to resume model training or further evaluate performance at the individual checkpoints. Usually training will stop after the f1 score hasn't improved for a number of epochs. The last checkpoint may not be the best.
@@ -901,7 +926,7 @@ python -m sciencebeam_trainer_delft.sequence_labelling.tools.checkpoints \
     "loss": 40.520591011530236,
     "f1": 0.5877923107411811,
     "optimizer": {
-      "type": "keras.optimizers.Adam",
+      "type": "torch.optim.adam.Adam",
       "lr": 0.0010000000474974513
     },
     "epoch": 39,
@@ -913,7 +938,7 @@ python -m sciencebeam_trainer_delft.sequence_labelling.tools.checkpoints \
     "loss": 44.48661111276361,
     "f1": 0.5899450117831894,
     "optimizer": {
-      "type": "keras.optimizers.Adam",
+      "type": "torch.optim.adam.Adam",
       "lr": 0.0010000000474974513
     },
     "epoch": 36,
@@ -925,7 +950,7 @@ python -m sciencebeam_trainer_delft.sequence_labelling.tools.checkpoints \
     "loss": 47.80826501711393,
     "f1": 0.591387179996031,
     "optimizer": {
-      "type": "keras.optimizers.Adam",
+      "type": "torch.optim.adam.Adam",
       "lr": 0.0010000000474974513
     },
     "epoch": 34,

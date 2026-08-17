@@ -1,9 +1,16 @@
+# cpu or gpu: selects which torch wheel the venv installs, see pyproject.
+# the lint, test and dist targets have no use for the CUDA runtime
+variable "TORCH_EXTRA" {
+  default = "cpu"
+}
+
 target "dev" {
   context    = "."
   dockerfile = "Dockerfile"
   target = "dev"
   args = {
     wapiti_source_download_url = "https://github.com/kermitt2/Wapiti/archive/5f9a52351fddf21916008daa4becd41d56e7f608.tar.gz"
+    torch_extra                = "${TORCH_EXTRA}"
   }
 }
 
@@ -13,6 +20,22 @@ target "delft" {
   target = "delft"
   contexts = {
     "dev" = "target:dev"
+  }
+}
+
+# the GPU variant of the runtime image, for training on hardware that has one.
+# it is a separate target rather than a flag so one CI run publishes both
+target "dev-gpu" {
+  inherits = ["dev"]
+  args = {
+    torch_extra = "gpu"
+  }
+}
+
+target "delft-gpu" {
+  inherits = ["delft"]
+  contexts = {
+    "dev" = "target:dev-gpu"
   }
 }
 

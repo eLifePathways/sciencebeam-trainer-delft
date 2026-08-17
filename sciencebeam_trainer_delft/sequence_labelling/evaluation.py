@@ -263,3 +263,54 @@ def classification_report(
         digits=digits,
         exclude_no_support=exclude_no_support
     )
+
+
+def to_index_list(sequence_indices) -> List[int]:
+    """Returns plain ints, whether the sequence is a tensor, an array or a list.
+
+    The tag lookup is a dict keyed by int, which a zero-dimensional tensor does
+    not match.
+    """
+    if hasattr(sequence_indices, 'tolist'):
+        return sequence_indices.tolist()
+    return [int(index) for index in sequence_indices]
+
+
+def iter_tag_sequences(
+    label_indices, preprocessor
+):
+    """Turns per-token label indices back into tag names, one list per sequence."""
+    for sequence_indices in label_indices:
+        yield list(preprocessor.inverse_transform(to_index_list(sequence_indices)))
+
+
+def get_classification_result_for_model(
+    model, data_loader, preprocessor
+) -> ClassificationResult:
+    """Scores a model over every batch of a data loader.
+
+    Predictions are truncated to the length of the expected tags for the same
+    sequence: padding is part of the batch, not part of the evaluation.
+    """
+    model.eval()
+    y_true: List[Sequence[str]] = []
+    y_pred: List[Sequence[str]] = []
+    for inputs, labels in data_loader:
+        assert labels is not None, 'labels required to score'
+        predicted = model.decode(inputs)
+        expected_tags = list(iter_tag_sequences(labels.tolist(), preprocessor))
+        predicted_tags = list(iter_tag_sequences(predicted, preprocessor))
+        for expected, predicted_sequence in zip(expected_tags, predicted_tags):
+            y_true.append(expected)
+            y_pred.append(list(predicted_sequence)[:len(expected)])
+    return ClassificationResult(y_true=y_true, y_pred=y_pred)
+
+
+def get_f1_scorer(data_loader, preprocessor):
+    """Returns a scorer for the trainer: a model in, a micro f1 out."""
+    def scorer(model) -> float:
+        classification_result = get_classification_result_for_model(
+            model, data_loader, preprocessor
+        )
+        return classification_result.micro_averages['f1']
+    return scorer

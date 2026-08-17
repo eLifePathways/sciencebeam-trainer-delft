@@ -4,7 +4,6 @@ from typing import Iterable, List, Optional, Tuple, Union
 from typing_extensions import Protocol
 
 import numpy as np
-import tf_keras as keras
 
 from delft.utilities.Embeddings import Embeddings
 from delft.sequenceLabelling.preprocess import (
@@ -335,8 +334,14 @@ def get_concatenated_embeddings_token_count(
 
 
 # generate batch of data to feed sequence labelling model, both for training and prediction
-class DataGenerator(keras.utils.Sequence):
-    'Generates data for Keras'
+class DataGenerator:
+    """Produces one batch of model inputs per index.
+
+    Batches are addressed by index rather than iterated, which is what the
+    window and unroll handling needs. `data_loader_torch.DataLoader` adapts
+    that to the tensors the model takes.
+    """
+
     def __init__(
         self,
         x: List[Union[str, List[str]]],

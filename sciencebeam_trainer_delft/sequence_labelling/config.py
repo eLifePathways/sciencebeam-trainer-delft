@@ -118,9 +118,10 @@ class ModelConfig(_ModelConfig):
 
 
 class TrainingConfig(_TrainingConfig):
+    # keyword only: upstream takes learning_rate as its first positional
+    # argument, which a positional passthrough would collide with
     def __init__(
         self,
-        *args,
         learning_rate=0.001,
         initial_epoch: Optional[int] = None,
         input_window_stride: Optional[int] = None,
@@ -128,7 +129,7 @@ class TrainingConfig(_TrainingConfig):
         initial_meta: Optional[dict] = None,
         **kwargs
     ):
-        super().__init__(*args, learning_rate=learning_rate, **kwargs)
+        super().__init__(learning_rate=learning_rate, **kwargs)
         self.initial_epoch = initial_epoch
         self.input_window_stride = input_window_stride
         self.checkpoint_epoch_interval = checkpoint_epoch_interval

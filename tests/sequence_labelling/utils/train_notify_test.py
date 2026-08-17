@@ -22,14 +22,14 @@ from sciencebeam_trainer_delft.sequence_labelling.utils.train_notify import (
 
 MODEL_NAME_1 = 'model1'
 
-TF_INFO_WITH_GPU: dict = {
-    'tf_version': '2.17.1',
-    'tf_device_lib': [MagicMock(device_type='GPU', physical_device_desc='name: Tesla T4')]
+DEVICE_INFO_WITH_GPU: dict = {
+    'torch_version': '2.11.0',
+    'gpu_device_names': ['Tesla T4']
 }
 
-TF_INFO_WITHOUT_GPU: dict = {
-    'tf_version': '2.17.1',
-    'tf_device_lib': [MagicMock(device_type='CPU')]
+DEVICE_INFO_WITHOUT_GPU: dict = {
+    'torch_version': '2.11.0',
+    'gpu_device_names': []
 }
 
 
@@ -100,7 +100,7 @@ class TestCheckRequiredGpu:
     def test_should_not_fail_if_gpu_not_required(self):
         check_required_gpu(
             require_gpu=False,
-            tf_info=TF_INFO_WITHOUT_GPU,
+            device_info=DEVICE_INFO_WITHOUT_GPU,
             model_path=MODEL_NAME_1,
             train_notification_manager=None
         )
@@ -108,7 +108,7 @@ class TestCheckRequiredGpu:
     def test_should_not_fail_if_gpu_required_and_available(self):
         check_required_gpu(
             require_gpu=True,
-            tf_info=TF_INFO_WITH_GPU,
+            device_info=DEVICE_INFO_WITH_GPU,
             model_path=MODEL_NAME_1,
             train_notification_manager=None
         )
@@ -117,7 +117,7 @@ class TestCheckRequiredGpu:
         with pytest.raises(RequiredGpuNotAvailable):
             check_required_gpu(
                 require_gpu=True,
-                tf_info=TF_INFO_WITHOUT_GPU,
+                device_info=DEVICE_INFO_WITHOUT_GPU,
                 model_path=MODEL_NAME_1,
                 train_notification_manager=None
             )
@@ -127,7 +127,7 @@ class TestCheckRequiredGpu:
         with pytest.raises(RequiredGpuNotAvailable):
             check_required_gpu(
                 require_gpu=True,
-                tf_info=TF_INFO_WITHOUT_GPU,
+                device_info=DEVICE_INFO_WITHOUT_GPU,
                 model_path=MODEL_NAME_1,
                 train_notification_manager=train_notification_manager
             )

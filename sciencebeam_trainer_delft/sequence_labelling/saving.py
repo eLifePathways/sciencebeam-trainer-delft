@@ -1,13 +1,30 @@
+"""Reads and writes the on-disk model directory.
+
+The layout is a contract with anything that loads these models, including
+sciencebeam-parser:
+
+    config.json          model configuration, including the architecture name
+    preprocessor.pkl     pickled preprocessor, with the vocabularies
+    preprocessor.json    the same preprocessor, readable without unpickling
+    model_weights.pt     torch state dict
+    meta.json            optional training metadata, read when resuming
+
+Only the weights file changed format with the PyTorch migration. A directory
+written by an earlier release holds `model_weights.hdf5` instead, which is
+still a supported input: it is converted when it is loaded, in memory, so the
+directory itself is never modified. See `tf_weight_conversion`.
+"""
 import logging
 import json
 import os
 from datetime import datetime
 from abc import ABC
-from typing import Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, cast
 
 import joblib
 
-from delft.sequenceLabelling.models import Model
+import torch
+from torch import nn
 import delft.sequenceLabelling.preprocess as delft_preprocess
 from delft.sequenceLabelling.preprocess import (
     FeaturesPreprocessor as DelftFeaturesPreprocessor,
@@ -16,7 +33,7 @@ from delft.sequenceLabelling.preprocess import (
 
 from sciencebeam_trainer_delft.utils.typing import T, U, V
 from sciencebeam_trainer_delft.utils.cloud_support import auto_upload_from_local_file
-from sciencebeam_trainer_delft.utils.io import open_file, write_text, read_text
+from sciencebeam_trainer_delft.utils.io import file_exists, open_file, write_text, read_text
 from sciencebeam_trainer_delft.utils.json import to_json, from_json
 
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig
@@ -28,6 +45,12 @@ from sciencebeam_trainer_delft.utils.download_manager import DownloadManager
 from sciencebeam_trainer_delft.sequence_labelling.tools.install_models import (
     copy_directory_with_source_meta
 )
+from sciencebeam_trainer_delft.sequence_labelling.tf_weight_conversion import (
+    LEGACY_WEIGHT_FILE,
+    LEGACY_WEIGHT_FILE_SUFFIX,
+    get_legacy_weight_file_path,
+    load_keras_weights_into_model
+)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -35,7 +58,10 @@ LOGGER = logging.getLogger(__name__)
 
 class _BaseModelSaverLoader(ABC):
     config_file = 'config.json'
-    weight_file = 'model_weights.hdf5'
+    # delft 1.0.x writes a torch state dict under this name
+    weight_file = 'model_weights.pt'
+    # what a directory saved before the PyTorch migration holds instead
+    legacy_weight_file = LEGACY_WEIGHT_FILE
     preprocessor_pickle_file = 'preprocessor.pkl'
     preprocessor_json_file = 'preprocessor.json'
     meta_file = 'meta.json'
@@ -101,7 +127,9 @@ def get_preprocessor_json(preprocessor: DelftWordPreprocessor) -> dict:
     return to_json(preprocessor_dict, plain_json=True)
 
 
-def get_feature_preprocessor_for_json(feature_preprocessor_json: dict) -> T_FeaturesPreprocessor:
+def get_feature_preprocessor_for_json(
+    feature_preprocessor_json: dict
+) -> Optional[T_FeaturesPreprocessor]:
     if not feature_preprocessor_json:
         return None
     LOGGER.debug('feature_preprocessor_json: %s', feature_preprocessor_json)
@@ -123,9 +151,9 @@ def get_preprocessor_for_json(preprocessor_json: dict) -> DelftWordPreprocessor:
         LOGGER.debug('preprocessor: %r', preprocessor)
     if isinstance(preprocessor, DelftWordPreprocessor):
         if isinstance(preprocessor.feature_preprocessor, dict):
-            preprocessor.feature_preprocessor = get_feature_preprocessor_for_json(
+            preprocessor.feature_preprocessor = cast(Any, get_feature_preprocessor_for_json(
                 preprocessor.feature_preprocessor
-            )
+            ))
         preprocessor = migrate_legacy_preprocessor_state_if_necessary(preprocessor)
     return preprocessor
 
@@ -176,9 +204,9 @@ class ModelSaver(_BaseModelSaverLoader):
             model_config.save(fp)
         LOGGER.info('model config file saved to %s', filepath)
 
-    def _save_model(self, model: Model, filepath: str):
+    def _save_model(self, model: nn.Module, filepath: str):
         with auto_upload_from_local_file(filepath) as local_filepath:
-            model.save(local_filepath)
+            torch.save(model.state_dict(), local_filepath)
         LOGGER.info('model saved to %s', filepath)
 
     def _save_meta(self, meta: dict, filepath: str):
@@ -207,7 +235,7 @@ class ModelSaver(_BaseModelSaverLoader):
     def save_to(
         self,
         directory: str,
-        model: Model,
+        model: nn.Module,
         meta: Optional[dict] = None,
         weight_file: Optional[str] = None
     ):
@@ -291,17 +319,29 @@ class ModelLoader(_BaseModelSaverLoader):
     def load_model_from_directory(
         self,
         directory: str,
-        model: Model,
+        model: nn.Module,
         weight_file: Optional[str] = None
     ):
-        return self.load_model_from_file(
-            os.path.join(directory, weight_file or self.weight_file),
-            model=model
-        )
+        filepath = os.path.join(directory, weight_file or self.weight_file)
+        if weight_file is None and not file_exists(filepath):
+            # a directory saved before the PyTorch migration holds Keras weights
+            # instead; they are converted on load rather than rejected
+            legacy_filepath = get_legacy_weight_file_path(directory)
+            if file_exists(legacy_filepath):
+                LOGGER.info(
+                    'no %s, falling back to the TF-era %s',
+                    self.weight_file, self.legacy_weight_file
+                )
+                filepath = legacy_filepath
+        return self.load_model_from_file(filepath, model=model)
 
-    def load_model_from_file(self, filepath: str, model: Model):
+    def load_model_from_file(self, filepath: str, model: nn.Module):
         LOGGER.info('loading model from %s', filepath)
         # we need a seekable file, ensure we download the file first
         local_filepath = self.download_manager.download_if_url(filepath)
-        # using load_weights to avoid print statement in load method
-        model.model.load_weights(local_filepath)
+        if local_filepath.endswith(LEGACY_WEIGHT_FILE_SUFFIX):
+            # converted in memory: loading a model must not write to the
+            # directory it loaded from
+            load_keras_weights_into_model(local_filepath, model)
+            return
+        model.load_state_dict(torch.load(local_filepath, map_location='cpu'))

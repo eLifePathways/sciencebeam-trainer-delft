@@ -4,20 +4,39 @@ version = "0.0.0"
 description = "ScienceBeam Trainer DeLFT"
 readme = "README.md"
 requires-python = ">=3.10"
+# every package imported directly is declared here, rather than relied on to
+# arrive through delft or scikit-learn
 dependencies = [
     "jsonpickle>=1.4.1",
+    # remote file access; a scheme needs its own implementation package, see
+    # the `gcs` extra
+    "fsspec>=2025.12.0",
+    "joblib>=1.5.2",
+    "numpy>=1.26.4",
+    "requests>=2.27.1",
+    "scikit-learn>=1.6.1",
+    "tqdm>=4.66.3",
+    "typing-extensions>=4.15.0",
 ]
 
 [project.optional-dependencies]
-tf = [
-    "tensorflow>=2.17.1",
-    "wrapt>=1.14.0",
-    # provides libdevice.10.bc, needed by TensorFlow's XLA GPU JIT compiler
-    # (normally pulled in via tensorflow's own `and-cuda` extra, which we don't use)
-    "nvidia-cuda-nvcc-cu12>=12.3.107; sys_platform == 'linux'",
+gcs = [
+    "gcsfs>=2025.12.0",
 ]
 delft = [
-    "delft>=0.4.3",
+    "delft>=1.0.1",
+    "h5py>=3.16.0",
+]
+# torch is declared directly so [tool.uv.sources] applies: uv sources are not
+# honoured for a transitive requirement, so relying on delft's own
+# `torch==2.11.0` resolves the CUDA wheel from PyPI instead. The two extras
+# select which wheel, and conflict, so exactly one has to be asked for --
+# `--all-extras` is therefore not usable and every install names its extras
+cpu = [
+    "torch==2.11.0",
+]
+gpu = [
+    "torch==2.11.0",
 ]
 
 [dependency-groups]
@@ -30,6 +49,27 @@ dev = [
     "types-pyyaml>=6.0.12.20250915",
     "types-requests>=2.27.5",
 ]
+[tool.uv]
+conflicts = [
+    [{ extra = "cpu" }, { extra = "gpu" }],
+]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu130", extra = "gpu" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
 [tool.setuptools.package-data]
 sciencebeam_trainer_delft = ["py.typed"]
 

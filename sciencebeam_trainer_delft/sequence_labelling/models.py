@@ -1,361 +1,388 @@
+"""Model architectures and the registry that builds them.
+
+Every model published from this repo is `CustomBidLSTM_CRF` with a features
+embedding size of 0, which feeds the raw feature matrix straight into the word
+LSTM. Upstream's `BidLSTM_CRF_FEATURES` embeds features through `nn.Embedding`
+and a features LSTM instead and has no size-0 path, so it cannot represent
+these models at any configuration.
+
+Layer and parameter names mirror the Keras implementation so that weights can
+be mapped across mechanically.
+"""
 import logging
-import json
-from typing import Dict, List, Type, Union
+from typing import Dict, List, Optional, Type
 
-from tf_keras.models import Model
-from tf_keras.layers import (
-    Concatenate,
-    Dense, LSTM, Bidirectional, Embedding, Input, Dropout,
-    TimeDistributed
-)
-
-import tf_keras.backend as K
+import numpy as np
+import torch
+from torch import nn
 
 import delft.sequenceLabelling.wrapper
-from delft.utilities.crf_wrapper_default import CRFModelWrapperDefault
-from delft.utilities.crf_layer import ChainCRF, chain_crf_loss
-from delft.sequenceLabelling.models import BaseModel
-from delft.sequenceLabelling.models import get_model as _get_model, BidLSTM_CRF_FEATURES
+from delft.sequenceLabelling.models import (
+    BidLSTM_CRF_FEATURES,
+    get_model as _get_model
+)
+from delft.utilities.crf_pytorch import CRF, ChainCRF
 
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig
+from sciencebeam_trainer_delft.sequence_labelling.upstream_patches import (
+    patch_bid_lstm_crf_char_masking,
+    patch_bid_lstm_crf_token_masking,
+    patch_chain_crf_eager_build
+)
 
 
 LOGGER = logging.getLogger(__name__)
 
 
-class CustomModel(BaseModel):
+# the CRF has to register its transition parameters when it is constructed,
+# or they are missing from the optimizer and from a fresh model's state dict.
+# applied here rather than in get_model, so that constructing an architecture
+# directly is safe too
+patch_chain_crf_eager_build()
+
+# upstream's shared CharacterEncoder implements the unmasked behaviour, which
+# is right for every architecture here except BidLSTM_CRF, whose Keras
+# counterpart set mask_zero=True. That mask reached the word LSTM too, so
+# without it a document's predictions depend on what it is batched with
+patch_bid_lstm_crf_char_masking()
+patch_bid_lstm_crf_token_masking()
+
+
+class CharacterEncoder(nn.Module):
+    """Encodes the characters of each token with a bidirectional LSTM.
+
+    The Keras model wraps an `Embedding` and a `Bidirectional(LSTM)` in
+    `TimeDistributed`; here the token axis is flattened into the batch instead.
+    """
+
     def __init__(
         self,
-        config,
-        ntags,
-        require_casing: bool = False,
-        use_crf: bool = False,
-        use_chain_crf: bool = False,
-        supports_features: bool = False,
-        require_features_indices_input: bool = False,
-        stateful: bool = False
+        char_vocab_size: int,
+        char_embedding_size: int,
+        num_char_lstm_units: int,
+        char_input_mask_zero: bool = False,
+        char_input_dropout: float = 0.0
     ):
-        super().__init__(config, ntags)
-        self.require_casing = require_casing
-        self.use_crf = use_crf
-        self.use_chain_crf = use_chain_crf
-        self.supports_features = supports_features
-        self.require_features_indices_input = require_features_indices_input
-        self.stateful = stateful
+        super().__init__()
+        self.char_embeddings = nn.Embedding(
+            char_vocab_size,
+            char_embedding_size,
+            padding_idx=0 if char_input_mask_zero else None
+        )
+        self.char_input_dropout = nn.Dropout(char_input_dropout)
+        self.char_lstm = nn.LSTM(
+            char_embedding_size,
+            num_char_lstm_units,
+            batch_first=True,
+            bidirectional=True
+        )
+        self.output_size = num_char_lstm_units * 2
+
+    def forward(self, char_input: torch.Tensor) -> torch.Tensor:
+        batch_size, sequence_length, max_char_length = char_input.shape
+        flattened = char_input.reshape(batch_size * sequence_length, max_char_length)
+        char_embeddings = self.char_input_dropout(self.char_embeddings(flattened))
+        _, (hidden, _) = self.char_lstm(char_embeddings)
+        # concatenate the final state of each direction, as Keras does for
+        # Bidirectional(LSTM(return_sequences=False))
+        encoded = torch.cat([hidden[0], hidden[1]], dim=-1)
+        return encoded.view(batch_size, sequence_length, self.output_size)
 
 
-def _concatenate_inputs(inputs: list, **kwargs):
-    if len(inputs) == 1:
-        return inputs[0]
-    return Concatenate(**kwargs)(inputs)
+class CustomBidLSTM_CRF(nn.Module):  # pylint: disable=invalid-name
+    """BiLSTM-CRF over word embeddings, character encodings and features.
 
-
-# renamed copy of BidLSTM_CRF to demonstrate a custom model
-class CustomBidLSTM_CRF(CustomModel):
+    Features are passed through unchanged when `features_embedding_size` is 0,
+    which is what every published model does, and through a dense projection
+    otherwise.
     """
-    A Keras implementation of BidLSTM-CRF for sequence labelling.
 
-    References
-    --
-    Guillaume Lample, Miguel Ballesteros, Sandeep Subramanian, Kazuya Kawakami, Chris Dyer.
-    "Neural Architectures for Named Entity Recognition". Proceedings of NAACL 2016.
-    https://arxiv.org/abs/1603.01360
-    """
+    name = 'CustomBidLSTM_CRF'
+    use_crf = True
+    use_chain_crf = True
+    supports_features = True
 
-    def __init__(self, config: ModelConfig, ntags=None):
-        super().__init__(
-            config,
-            ntags,
-            require_casing=False,
-            use_crf=True,
-            use_chain_crf=True,
-            supports_features=True,
-            stateful=config.stateful
-        )
-
-        stateful = self.stateful
-        # stateful RNNs require the batch size to be passed in
-        input_batch_size = config.batch_size if stateful else None
-
-        model_inputs = []
-        lstm_inputs = []
-        # build input, directly feed with word embedding by the data generator
-        word_input = Input(
-            # shape=(None, config.word_embedding_size),
-            batch_shape=(input_batch_size, None, config.word_embedding_size),
-            name='word_input'
-        )
-        model_inputs.append(word_input)
-        lstm_inputs.append(word_input)
-
-        # build character based embedding
-        char_input = Input(
-            # shape=(None, config.max_char_length),
-            batch_shape=(input_batch_size, None, config.max_char_length),
-            dtype='int32',
-            name='char_input'
-        )
-        model_inputs.append(char_input)
-
-        if config.char_embedding_size:
-            assert config.char_vocab_size, 'config.char_vocab_size required'
-            char_embeddings = TimeDistributed(Embedding(
-                input_dim=config.char_vocab_size,
-                output_dim=config.char_embedding_size,
-                mask_zero=config.char_input_mask_zero,
-                name='char_embeddings_embedding'
-            ), name='char_embeddings')(char_input)
-
-            chars = TimeDistributed(
-                Bidirectional(LSTM(
-                    config.num_char_lstm_units,
-                    dropout=config.char_input_dropout,
-                    recurrent_dropout=config.char_lstm_dropout,
-                    return_sequences=False
-                )),
-                name='char_lstm'
-            )(char_embeddings)
-            lstm_inputs.append(chars)
-
-        # length of sequence not used for the moment (but used for f1 communication)
-        length_input = Input(batch_shape=(None, 1), dtype='int32', name='length_input')
-
-        # combine characters and word embeddings
-        LOGGER.debug('model, config.use_features: %s', config.use_features)
-        if config.use_features:
-            LOGGER.info('model using features')
-            assert config.max_feature_size > 0
-            features_input = Input(
-                batch_shape=(input_batch_size, None, config.max_feature_size),
-                name='features_input'
-            )
-            model_inputs.append(features_input)
-            features = features_input
-            if config.features_embedding_size:
-                features = TimeDistributed(Dense(
-                    config.features_embedding_size,
-                    name='features_embeddings_dense'
-                ), name='features_embeddings')(features)
-            LOGGER.info(
-                'word_input=%s, chars=%s, features=%s',
-                word_input, chars, features
-            )
-            lstm_inputs.append(features)
-
-        x = _concatenate_inputs(lstm_inputs, name='word_lstm_input')
-        x = Dropout(config.dropout, name='word_lstm_input_dropout')(x)
-
-        x = Bidirectional(LSTM(
-            units=config.num_word_lstm_units,
-            return_sequences=True,
-            recurrent_dropout=config.recurrent_dropout,
-            stateful=stateful,
-        ), name='word_lstm')(x)
-        x = Dropout(config.dropout, name='word_lstm_output_dropout')(x)
-        x = Dense(
-            config.num_word_lstm_units, name='word_lstm_dense', activation='tanh'
-        )(x)
-        x = Dense(ntags, name='dense_ntags')(x)
-        self.crf = ChainCRF(name='crf')
-        pred = self.crf(x)
-
-        model_inputs.append(length_input)
-
-        self.model = Model(inputs=model_inputs, outputs=[pred])
-
-        if config.masked_crf_loss:
-            # Override ChainCRF loss to mask PAD positions (label index 0).
-            # Without masking, PAD tokens (~37% of padded sequences) produce a large
-            # spurious gradient that can overwhelm the learning signal for rare classes.
-            # The mask is derived from y_true: PAD positions have one-hot label 0,
-            # real positions have labels 1..ntags-1.
-            crf_layer = self.crf
-
-            def _masked_chain_crf_loss(y_true, y_pred):
-                y_sparse = K.argmax(y_true, axis=-1)
-                mask = K.cast(K.not_equal(y_sparse, 0), K.floatx())
-                return chain_crf_loss(
-                    y_true, y_pred,
-                    crf_layer.U, crf_layer.b_start, crf_layer.b_end,
-                    mask
-                )
-
-            self.crf.loss = _masked_chain_crf_loss
-
+    def __init__(self, config: ModelConfig, ntags: int):
+        super().__init__()
         self.config = config
+        self.ntags = ntags
+
+        self.char_encoder = CharacterEncoder(
+            char_vocab_size=config.char_vocab_size,
+            char_embedding_size=config.char_embedding_size,
+            num_char_lstm_units=config.num_char_lstm_units,
+            char_input_mask_zero=config.char_input_mask_zero,
+            char_input_dropout=config.char_input_dropout
+        )
+
+        word_lstm_input_size = config.word_embedding_size + self.char_encoder.output_size
+
+        self.features_embeddings_dense: Optional[nn.Linear] = None
+        if config.use_features:
+            assert config.max_feature_size > 0, 'config.max_feature_size required'
+            if config.features_embedding_size:
+                self.features_embeddings_dense = nn.Linear(
+                    config.max_feature_size, config.features_embedding_size
+                )
+                word_lstm_input_size += config.features_embedding_size
+            else:
+                # pass the feature matrix through unchanged
+                word_lstm_input_size += config.max_feature_size
+
+        self.dropout = nn.Dropout(config.dropout)
+        self.word_lstm = nn.LSTM(
+            word_lstm_input_size,
+            config.num_word_lstm_units,
+            batch_first=True,
+            bidirectional=True
+        )
+        self.word_lstm_dense = nn.Linear(
+            config.num_word_lstm_units * 2, config.num_word_lstm_units
+        )
+        self.dense_ntags = nn.Linear(config.num_word_lstm_units, ntags)
+        self.crf = ChainCRF(ntags)
+
+    def get_word_lstm_input(self, inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
+        lstm_inputs: List[torch.Tensor] = []
+        word_input = inputs.get('word_input')
+        if word_input is not None and word_input.shape[-1]:
+            lstm_inputs.append(word_input)
+        lstm_inputs.append(self.char_encoder(inputs['char_input']))
+        if self.config.use_features:
+            features_input = inputs['features_input']
+            if self.features_embeddings_dense is not None:
+                features_input = self.features_embeddings_dense(features_input)
+            lstm_inputs.append(features_input)
+        if len(lstm_inputs) == 1:
+            return lstm_inputs[0]
+        return torch.cat(lstm_inputs, dim=-1)
+
+    def get_logits(self, inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
+        x = self.dropout(self.get_word_lstm_input(inputs))
+        lstm_output, _ = self.word_lstm(x)
+        x = self.dropout(lstm_output)
+        x = torch.tanh(self.word_lstm_dense(x))
+        return self.dense_ntags(x)
+
+    def get_crf_mask(self, labels: torch.Tensor) -> Optional[torch.Tensor]:
+        if not self.config.masked_crf_loss:
+            return None
+        # PAD has label index 0; without masking those positions dominate the
+        # gradient on padded batches
+        return labels != 0
+
+    def forward(
+        self,
+        inputs: Dict[str, torch.Tensor],
+        labels: Optional[torch.Tensor] = None
+    ) -> Dict[str, torch.Tensor]:
+        logits = self.get_logits(inputs)
+        outputs = {'logits': logits}
+        if labels is not None:
+            outputs['loss'] = self.crf(logits, labels, mask=self.get_crf_mask(labels))
+        return outputs
+
+    def decode(self, inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
+        with torch.no_grad():
+            return self.crf.decode(self.get_logits(inputs))
 
 
-# copied from
-# https://github.com/kermitt2/delft/blob/d2f8390ac01779cab959f57aa6e1a8f1d2723505/
-# delft/sequenceLabelling/models.py
-class CustomBidLSTM_CRF_FEATURES(CustomModel):
-    """
-    A Keras implementation of BidLSTM-CRF for sequence labelling which create features
-    from additional orthogonal information generated by GROBID.
+class CustomBidLSTM_CRF_FEATURES(nn.Module):  # pylint: disable=invalid-name
+    """BiLSTM-CRF that embeds the features rather than concatenating them.
 
-    References
-    --
-    Guillaume Lample, Miguel Ballesteros, Sandeep Subramanian, Kazuya Kawakami, Chris Dyer.
-    "Neural Architectures for Named Entity Recognition". Proceedings of NAACL 2016.
-    https://arxiv.org/abs/1603.01360
+    Each feature value is an index into one shared embedding, which a
+    bidirectional LSTM reduces to one vector per token. Unlike
+    `CustomBidLSTM_CRF` this uses the plain CRF, as the Keras model did.
+
+    Deprecated: `CustomBidLSTM_CRF` takes features too, and is what every
+    published model uses.
     """
 
     name = 'CustomBidLSTM_CRF_FEATURES'
+    use_crf = True
+    use_chain_crf = False
+    supports_features = True
+    require_features_indices_input = True
+    deprecated_reason = (
+        'CustomBidLSTM_CRF supports features as well and is what every'
+        ' published model uses'
+    )
 
-    def __init__(self, config, ntags=None):
-        super().__init__(
-            config,
-            ntags,
-            require_casing=False,
-            use_crf=True,
-            use_chain_crf=False,
-            supports_features=True,
-            require_features_indices_input=True
-        )
-
-        # build input, directly feed with word embedding by the data generator
-        word_input = Input(shape=(None, config.word_embedding_size), name='word_input')
-
-        # build character based embedding
-        char_input = Input(shape=(None, config.max_char_length), dtype='int32', name='char_input')
-        char_embeddings = TimeDistributed(Embedding(
-            input_dim=config.char_vocab_size,
-            output_dim=config.char_embedding_size,
-            mask_zero=True,
-            name='char_embeddings'
-        ))(char_input)
-
-        chars = TimeDistributed(Bidirectional(LSTM(
-            config.num_char_lstm_units,
-            return_sequences=False
-        )))(char_embeddings)
-
-        # layout features input and embeddings
-        features_input = Input(
-            shape=(None, len(config.features_indices)),
-            dtype='float32',
-            name='features_input'
-        )
-
-        assert config.features_vocabulary_size, "config.features_vocabulary_size required"
-        assert config.features_embedding_size, "config.features_embedding_size required"
-        # features_vocabulary_size (default 12) * number_of_features + 1
-        # (the zero is reserved for masking / padding)
-        features_embedding = TimeDistributed(
-            Embedding(
-                input_dim=config.features_vocabulary_size * len(config.features_indices) + 1,
-                output_dim=config.features_embedding_size,
-                mask_zero=True,
-                trainable=True,
-                name='features_embedding'),
-            name="features_embedding_td_1"
-        )(features_input)
-
-        assert config.features_lstm_units, "config.features_lstm_units required"
-        features_embedding_bd = TimeDistributed(
-            Bidirectional(LSTM(config.features_lstm_units, return_sequences=False)),
-            name="features_embedding_td_2"
-        )(features_embedding)
-
-        features_embedding_out = Dropout(config.dropout)(features_embedding_bd)
-        # length of sequence not used for the moment (but used for f1 communication)
-        length_input = Input(batch_shape=(None, 1), dtype='int32', name='length_input')
-
-        # combine characters and word embeddings
-        x = Concatenate()([word_input, chars, features_embedding_out])
-        x = Dropout(config.dropout)(x)
-
-        x = Bidirectional(LSTM(
-            units=config.num_word_lstm_units,
-            return_sequences=True,
-            recurrent_dropout=config.recurrent_dropout
-        ))(x)
-        x = Dropout(config.dropout)(x)
-        x = Dense(config.num_word_lstm_units, activation='tanh')(x)
-        x = Dense(ntags)(x)
-
-        base_model = Model(
-            inputs=[word_input, char_input, features_input, length_input],
-            outputs=[x]
-        )
-
-        self.model = CRFModelWrapperDefault(base_model, ntags)
-
-        input_shapes = [
-            (None, None, config.word_embedding_size),      # word_input
-            (None, None, config.max_char_length),          # char_input
-            (None, None, len(config.features_indices)),    # features_input
-            (None, None, 1),                               # length_input
-        ]
-        self.model.build(input_shape=input_shapes)
-
+    def __init__(self, config: ModelConfig, ntags: int):
+        super().__init__()
         self.config = config
+        self.ntags = ntags
+
+        self.char_encoder = CharacterEncoder(
+            char_vocab_size=config.char_vocab_size,
+            char_embedding_size=config.char_embedding_size,
+            num_char_lstm_units=config.num_char_lstm_units,
+            char_input_mask_zero=config.char_input_mask_zero,
+            char_input_dropout=config.char_input_dropout
+        )
+
+        assert config.features_vocabulary_size, 'config.features_vocabulary_size required'
+        assert config.features_embedding_size, 'config.features_embedding_size required'
+        assert config.features_lstm_units, 'config.features_lstm_units required'
+        feature_count = len(config.features_indices or [])
+        self.features_embedding = nn.Embedding(
+            # index zero is reserved for padding
+            config.features_vocabulary_size * feature_count + 1,
+            config.features_embedding_size,
+            padding_idx=0
+        )
+        self.features_lstm = nn.LSTM(
+            config.features_embedding_size,
+            config.features_lstm_units,
+            batch_first=True,
+            bidirectional=True
+        )
+
+        word_lstm_input_size = (
+            config.word_embedding_size
+            + self.char_encoder.output_size
+            + config.features_lstm_units * 2
+        )
+        self.dropout = nn.Dropout(config.dropout)
+        self.word_lstm = nn.LSTM(
+            word_lstm_input_size,
+            config.num_word_lstm_units,
+            batch_first=True,
+            bidirectional=True
+        )
+        self.word_lstm_dense = nn.Linear(
+            config.num_word_lstm_units * 2, config.num_word_lstm_units
+        )
+        self.dense_ntags = nn.Linear(config.num_word_lstm_units, ntags)
+        self.crf = CRF(ntags)
+
+    def get_features_output(self, features_input: torch.Tensor) -> torch.Tensor:
+        batch_size, sequence_length, feature_count = features_input.shape
+        flattened = features_input.reshape(batch_size * sequence_length, feature_count)
+        embedded = self.features_embedding(flattened)
+        _, (hidden, _) = self.features_lstm(embedded)
+        encoded = torch.cat([hidden[0], hidden[1]], dim=-1)
+        output_size = self.config.features_lstm_units * 2
+        return self.dropout(encoded.view(batch_size, sequence_length, output_size))
+
+    def get_word_lstm_input(self, inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
+        lstm_inputs: List[torch.Tensor] = []
+        word_input = inputs.get('word_input')
+        if word_input is not None and word_input.shape[-1]:
+            lstm_inputs.append(word_input)
+        lstm_inputs.append(self.char_encoder(inputs['char_input']))
+        lstm_inputs.append(self.get_features_output(inputs['features_input']))
+        return torch.cat(lstm_inputs, dim=-1)
+
+    def get_logits(self, inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
+        x = self.dropout(self.get_word_lstm_input(inputs))
+        lstm_output, _ = self.word_lstm(x)
+        x = self.dropout(lstm_output)
+        x = torch.tanh(self.word_lstm_dense(x))
+        return self.dense_ntags(x)
+
+    def forward(
+        self,
+        inputs: Dict[str, torch.Tensor],
+        labels: Optional[torch.Tensor] = None
+    ) -> Dict[str, torch.Tensor]:
+        logits = self.get_logits(inputs)
+        outputs = {'logits': logits}
+        if labels is not None:
+            outputs['loss'] = self.crf(logits, labels)
+        return outputs
+
+    def decode(self, inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
+        with torch.no_grad():
+            return torch.as_tensor(self.crf.decode(self.get_logits(inputs)))
 
 
-DEFAULT_MODEL_NAMES = [
-    'BidLSTM_CRF', 'BidLSTM_CNN', 'BidLSTM_CNN_CRF', 'BidGRU_CRF', 'BidLSTM_CRF_CASING',
-    BidLSTM_CRF_FEATURES.name
-]
-
-MODEL_MAP: Dict[str, Type[CustomModel]] = {
-    'CustomBidLSTM_CRF': CustomBidLSTM_CRF,
+MODEL_MAP: Dict[str, Type[nn.Module]] = {
+    CustomBidLSTM_CRF.name: CustomBidLSTM_CRF,
     CustomBidLSTM_CRF_FEATURES.name: CustomBidLSTM_CRF_FEATURES
 }
 
+DEFAULT_MODEL_NAMES = [
+    'BidLSTM_CRF', 'BidLSTM_ChainCRF', 'BidLSTM_CNN', 'BidLSTM_CNN_CRF', 'BidGRU_CRF',
+    'BidLSTM_CRF_CASING', BidLSTM_CRF_FEATURES.name
+]
+
+# architectures that only work with features, whatever the config asked for
 IMPLICIT_MODEL_CONFIG_PROPS_MAP = {
-    BidLSTM_CRF_FEATURES.name: dict(
-        use_features=True,
-        use_features_indices_input=True
-    ),
-    CustomBidLSTM_CRF_FEATURES.name: dict(
-        use_features=True,
-        use_features_indices_input=True
-    )
+    BidLSTM_CRF_FEATURES.name: {
+        'use_features': True,
+        'use_features_indices_input': True
+    },
+    CustomBidLSTM_CRF_FEATURES.name: {
+        'use_features': True,
+        'use_features_indices_input': True
+    }
 }
 
 
-def register_model(name: str, model_class: Type[CustomModel]):
+def register_model(name: str, model_class: Type[nn.Module]):
     MODEL_MAP[name] = model_class
 
 
 def updated_implicit_model_config_props(model_config: ModelConfig):
-    implicit_model_config_props = IMPLICIT_MODEL_CONFIG_PROPS_MAP.get(model_config.architecture)
+    implicit_model_config_props = IMPLICIT_MODEL_CONFIG_PROPS_MAP.get(
+        model_config.architecture
+    )
     if not implicit_model_config_props:
         return
     for key, value in implicit_model_config_props.items():
         setattr(model_config, key, value)
 
 
-def _create_model(
-        model_class: Type[CustomModel],
-        config: ModelConfig,
-        ntags=None) -> CustomModel:
-    return model_class(config, ntags=ntags)
+def is_model_stateful(model: nn.Module) -> bool:
+    """Reports whether the model carries LSTM state across batches.
+
+    Nothing does: Keras exposed this directly and torch does not, so the
+    architectures here are stateless.
+    """
+    return getattr(model, 'stateful', False)
 
 
-def is_model_stateful(model: Union[BaseModel, CustomModel]) -> bool:
-    try:
-        return model.stateful
-    except AttributeError:
-        return False
+def to_tag_indices_array(predictions) -> np.ndarray:
+    """Returns one tag index per token, whichever CRF decoded them.
+
+    `ChainCRF` decodes to a tensor; the pytorch-crf based `CRF` upstream's
+    architectures use decodes to a list per sequence. Both are rectangular
+    here, since decoding is not given a mask.
+    """
+    if isinstance(predictions, torch.Tensor):
+        return predictions.cpu().numpy()
+    return np.asarray(predictions)
 
 
-def get_model(config: ModelConfig, preprocessor, ntags=None):
-    LOGGER.info(
-        'get_model, config: %s, ntags=%s',
-        json.dumps(vars(config), indent=4),
-        ntags
-    )
+def get_supports_features(model: nn.Module, architecture: str) -> bool:
+    supports_features = getattr(model, 'supports_features', None)
+    if supports_features is not None:
+        return supports_features
+    # upstream's architectures do not declare this; the ones that take features
+    # are those the implicit config map turns features on for
+    return architecture in IMPLICIT_MODEL_CONFIG_PROPS_MAP
 
+
+def get_model(config: ModelConfig, preprocessor, ntags: Optional[int] = None):
+    LOGGER.info('get_model, architecture=%s, ntags=%s', config.architecture, ntags)
     model_class = MODEL_MAP.get(config.architecture)
-    if not model_class:
-        return _get_model(config, preprocessor, ntags=ntags)
-
-    model = _create_model(model_class, config, ntags=ntags)
+    if model_class is not None:
+        model = model_class(config, ntags)
+    else:
+        assert ntags is not None, 'ntags required'
+        model = _get_model(config, ntags)
+    deprecated_reason = getattr(model, 'deprecated_reason', None)
+    if deprecated_reason:
+        LOGGER.warning(
+            'architecture %r is deprecated: %s', config.architecture, deprecated_reason
+        )
+    # the data generator is configured from these, so an architecture built
+    # upstream has to go through them too
     config.use_crf = model.use_crf
     config.use_chain_crf = model.use_chain_crf
-    preprocessor.return_casing = model.require_casing
-    if config.use_features and not model.supports_features:
+    preprocessor.return_casing = getattr(model, 'require_casing', False)
+    if config.use_features and not get_supports_features(model, config.architecture):
         LOGGER.warning('features enabled but not supported by model (disabling)')
         config.use_features = False
     preprocessor.return_features = config.use_features

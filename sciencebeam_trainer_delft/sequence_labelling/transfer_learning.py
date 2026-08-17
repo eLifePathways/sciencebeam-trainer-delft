@@ -1,12 +1,18 @@
+"""Copies weights and freezes layers, from one model to another.
+
+Layers are addressed by the module path torch gives them, such as
+`word_lstm` or `char_encoder.embeddings`, which is what
+`--transfer-copy-layers` and `--transfer-freeze-layers` name. The available
+names are listed in the error raised for an unknown one.
+"""
 import argparse
 import logging
 from typing import Dict, List, Optional, NamedTuple
 
-import tf_keras as keras
-import numpy as np
+import torch
+from torch import nn
 
 from delft.sequenceLabelling.preprocess import Preprocessor
-from delft.sequenceLabelling.models import BaseModel
 
 from sciencebeam_trainer_delft.utils.misc import (
     parse_comma_separated_str,
@@ -31,33 +37,36 @@ class TransferLearningConfig(NamedTuple):
 
 
 class TransferModelWrapper:
-    def __init__(self, model: BaseModel):
+    """Addresses a model's layers by their module path."""
+
+    def __init__(self, model: nn.Module):
         self.model = model
-        self.keras_model: keras.Model = model.model
-        self.keras_layers_by_name: Dict[str, keras.layers.Layer] = {
-            layer.name: layer
-            for layer in self.keras_model.layers
+        self.modules_by_name: Dict[str, nn.Module] = {
+            name: module
+            for name, module in model.named_modules()
+            # the root module is named '', which is not a layer to copy
+            if name
         }
-        self.layer_names = set(self.keras_layers_by_name.keys())
+        self.layer_names = set(self.modules_by_name.keys())
 
-    def get_layer_weights(self, layer_name: str) -> List[np.ndarray]:
-        return self.keras_layers_by_name[layer_name].get_weights()
+    def get_layer_weights(self, layer_name: str) -> Dict[str, torch.Tensor]:
+        return self.modules_by_name[layer_name].state_dict()
 
-    def set_layer_weights(self, layer_name: str, weights: List[np.ndarray]):
+    def set_layer_weights(self, layer_name: str, weights: Dict[str, torch.Tensor]):
         LOGGER.info('setting weights of layer: %r', layer_name)
         LOGGER.debug('setting weights of layer %r to:\n%s', layer_name, weights)
-        self.keras_layers_by_name[layer_name].set_weights(weights)
+        self.modules_by_name[layer_name].load_state_dict(weights)
 
     def freeze_layer(self, layer_name: str):
         LOGGER.info('freezing layer: %r', layer_name)
-        self.keras_layers_by_name[layer_name].trainable = False
+        self.modules_by_name[layer_name].requires_grad_(False)
 
 
 class TransferLearningSource:
     def __init__(
         self,
         transfer_learning_config: TransferLearningConfig,
-        source_model: BaseModel,
+        source_model: nn.Module,
         source_preprocessor: Preprocessor
     ):
         self.transfer_learning_config = transfer_learning_config
@@ -80,7 +89,7 @@ class TransferLearningSource:
         directory = model_loader.download_model(transfer_learning_config.source_model_path)
         source_model_config = model_loader.load_model_config_from_directory(directory)
         source_preprocessor = model_loader.load_preprocessor_from_directory(directory)
-        source_model: BaseModel = get_model(
+        source_model: nn.Module = get_model(
             source_model_config,
             source_preprocessor,
             ntags=len(source_preprocessor.vocab_tag)
@@ -107,7 +116,7 @@ class TransferLearningSource:
             value = getattr(self.source_preprocessor, field_name)
             setattr(target_preprocessor, field_name, value)
 
-    def apply_weights(self, target_model: BaseModel):
+    def apply_weights(self, target_model: nn.Module):
         if not self.transfer_learning_config.copy_layers:
             LOGGER.info('no transfer learning source layers specified')
             return
@@ -145,7 +154,7 @@ class TransferLearningSource:
                 ) from exc
 
 
-def freeze_model_layers(target_model: BaseModel, layers: Optional[List[str]]):
+def freeze_model_layers(target_model: nn.Module, layers: Optional[List[str]]):
     if not layers:
         return
     wrapped_target_model = TransferModelWrapper(target_model)

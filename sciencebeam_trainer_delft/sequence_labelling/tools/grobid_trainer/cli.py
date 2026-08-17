@@ -7,14 +7,11 @@ from abc import abstractmethod
 from typing import List, Optional, Sequence
 
 import sciencebeam_trainer_delft.utils.no_warn_if_disabled  # noqa, pylint: disable=unused-import
-import sciencebeam_trainer_delft.utils.configure_keras  # noqa, pylint: disable=unused-import
 # pylint: disable=wrong-import-order, ungrouped-imports
-
-import tf_keras.backend as K  # type: ignore[import-untyped]
 
 from sciencebeam_trainer_delft.utils.download_manager import DownloadManager
 from sciencebeam_trainer_delft.utils.cloud_support import patch_cloud_support
-from sciencebeam_trainer_delft.utils.tf import get_tf_info
+from sciencebeam_trainer_delft.utils.device import get_device_info, log_device_info
 from sciencebeam_trainer_delft.utils.io import (
     copy_file,
     auto_uploading_output_file
@@ -157,6 +154,7 @@ class GrobidTrainerSubCommand(SubCommand):
             batch_size=args.batch_size,
             max_sequence_length=args.max_sequence_length,
             multiprocessing=args.multiprocessing,
+            device=args.device,
             embedding_manager=self.embedding_manager,
             download_manager=self.download_manager
         )
@@ -220,9 +218,6 @@ class GrobidTrainerSubCommand(SubCommand):
 
         self.do_run(args)
 
-        # see https://github.com/tensorflow/tensorflow/issues/3388
-        K.clear_session()
-
 
 class TrainSubCommand(GrobidTrainerSubCommand):
     def add_arguments(self, parser: argparse.ArgumentParser):
@@ -233,11 +228,11 @@ class TrainSubCommand(GrobidTrainerSubCommand):
     def do_run(self, args: argparse.Namespace):
         if not args.model:
             raise ValueError("model required")
-        tf_info = get_tf_info()
-        LOGGER.info('get_tf_info: %s', tf_info)
+        device_info = get_device_info()
+        log_device_info(device_info)
         check_required_gpu(
             require_gpu=args.require_gpu,
-            tf_info=tf_info,
+            device_info=device_info,
             model_path=args.model,
             train_notification_manager=get_train_notification_manager(args)
         )
@@ -298,11 +293,11 @@ class TrainEvalSubCommand(GrobidTrainerSubCommand):
             raise ValueError("model required")
         if args.fold_count < 1:
             raise ValueError("fold-count should be equal or more than 1")
-        tf_info = get_tf_info()
-        LOGGER.info('get_tf_info: %s', tf_info)
+        device_info = get_device_info()
+        log_device_info(device_info)
         check_required_gpu(
             require_gpu=args.require_gpu,
-            tf_info=tf_info,
+            device_info=device_info,
             model_path=args.model,
             train_notification_manager=get_train_notification_manager(args)
         )

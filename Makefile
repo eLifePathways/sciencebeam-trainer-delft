@@ -6,14 +6,14 @@ VENV = .venv
 UV = VIRTUAL_ENV=$(VENV) uv
 PIP = $(UV) pip
 
-# TensorFlow's GPU backend dlopen's libcudnn.so.8, but torch pins nvidia-cudnn-cu12==9.x
-# (a different SONAME) and only one version of that package can be installed at a time.
-# We install cuDNN 8 separately (not into the venv) and expose it via LD_LIBRARY_PATH so
-# TensorFlow can find it without disturbing the cuDNN 9 that torch depends on.
-CUDNN8_COMPAT_DIR = .venv-cudnn8-compat
-CUDNN8_COMPAT_VERSION = 8.9.7.29
+PYTHON = PATH=$(VENV)/bin:$$PATH $(VENV)/bin/python
 
-PYTHON = PATH=$(VENV)/bin:$$PATH LD_LIBRARY_PATH=$(CUDNN8_COMPAT_DIR)/nvidia/cudnn/lib:$$LD_LIBRARY_PATH $(VENV)/bin/python
+# the cpu and gpu extras conflict, so --all-extras is not usable and the
+# extras are named; TORCH_EXTRA selects which torch wheel to install.
+# `?=` so that `TORCH_EXTRA=gpu make build` reaches docker compose: a plain
+# assignment would override the environment and re-export its own value
+TORCH_EXTRA ?= cpu
+UV_SYNC_EXTRAS = --extra delft --extra gcs --extra $(TORCH_EXTRA)
 
 BATCH_SIZE = 10
 MAX_EPOCH = 1
@@ -50,14 +50,6 @@ DATASET_DIR = /data/dataset
 USER_AGENT = Dummy/user-agent
 SAMPLE_PDF_URL = https://cdn.elifesciences.org/articles/32671/elife-32671-v2.pdf
 
-GCLOUD = gcloud
-GCLOUD_JOB_NAME = sciencebeam_$(GROBID_TRAIN_ACTION)_$(ARCHITECTURE)_$(LIMIT)_$(shell date +%s -u)
-GCLOUD_JOB_DIR =
-# see https://cloud.google.com/ml-engine/docs/tensorflow/runtime-version-list
-GCLOUD_AI_PLATFORM_RUNTIME = 1.15
-GCLOUD_AI_PLATFORM_PYTHON_VERSION = 3.7
-GCLOUD_ARGS =
-
 PYTEST_ARGS =
 NOT_SLOW_PYTEST_ARGS = -m 'not slow'
 SLOW_PYTEST_ARGS = -m 'slow'
@@ -83,14 +75,18 @@ venv-create:
 
 
 dev-install:
-	$(UV) sync --active --frozen --all-extras --all-groups
+	$(UV) sync --active --frozen $(UV_SYNC_EXTRAS) --all-groups
 
 
-dev-install-cudnn8-compat:
-	$(UV) pip install --no-deps --target $(CUDNN8_COMPAT_DIR) nvidia-cudnn-cu12==$(CUDNN8_COMPAT_VERSION)
+dev-install-gpu:
+	$(MAKE) dev-install TORCH_EXTRA=gpu
+	$(PYTHON) -c "import torch; print('torch', torch.__version__, 'cuda', torch.cuda.is_available())"
 
 
-dev-venv: venv-create dev-install dev-install-cudnn8-compat
+dev-venv: venv-create dev-install
+
+
+dev-venv-gpu: venv-create dev-install-gpu
 
 
 dev-flake8:
@@ -110,19 +106,16 @@ dev-lint: dev-flake8 dev-pylint dev-mypy
 
 dev-pytest:
 	PATH=./third-parties/wapiti:$$PATH \
-		TF_USE_LEGACY_KERAS=1 \
 		$(PYTHON) -m pytest -v -p no:cacheprovider $(ARGS)
 
 
 dev-pytest-not-slow:
 	PATH=./third-parties/wapiti:$$PATH \
-		TF_USE_LEGACY_KERAS=1 \
 		$(PYTHON) -m pytest -v -p no:cacheprovider $(NOT_SLOW_PYTEST_ARGS)
 
 
 dev-pytest-slow-only:
 	PATH=./third-parties/wapiti:$$PATH \
-		TF_USE_LEGACY_KERAS=1 \
 		$(PYTHON) -m pytest -v -p no:cacheprovider \
 		$(SLOW_PYTEST_ARGS) \
 		-p no:cacheprovider -p no:warnings -vv --maxfail=1 $(ARGS)
@@ -139,7 +132,6 @@ dev-watch:
 
 dev-watch-slow:
 	PATH=./third-parties/wapiti:$$PATH \
-		TF_USE_LEGACY_KERAS=1 \
 		$(PYTHON) -m pytest_watcher \
 		--runner=$(VENV)/bin/python \
 		. \
@@ -282,39 +274,6 @@ grobid-eval-header: .grobid-eval-header-args
 grobid-tag-header: .grobid-tag-header-args
 	$(RUN_PYTHON) -m sciencebeam_trainer_delft.sequence_labelling.grobid_trainer \
 		$(_GROBID_TAG_ARGS)
-
-
-gcloud-ai-platform-local-grobid-train-header: .grobid-train-header-args
-	@echo "_GROBID_TRAIN_ARGS=$(_GROBID_TRAIN_ARGS)"
-	$(GCLOUD) ai-platform local train \
-		--module-name sciencebeam_trainer_delft.sequence_labelling.grobid_trainer \
-		--package-path sciencebeam_trainer_delft \
-		$(GCLOUD_ARGS) \
-		-- \
-		$(_GROBID_TRAIN_ARGS)
-
-
-.require-GCLOUD_JOB_DIR:
-	@if [ -z "$(GCLOUD_JOB_DIR)" ]; then \
-		echo "GCLOUD_JOB_DIR required"; \
-		exit 1; \
-	fi
-
-
-gcloud-ai-platform-cloud-grobid-train-header: .grobid-train-header-args .require-GCLOUD_JOB_DIR
-	@echo "_GROBID_TRAIN_ARGS=$(_GROBID_TRAIN_ARGS)"
-	@echo "GCLOUD_JOB_NAME=$(GCLOUD_JOB_NAME)"
-	$(GCLOUD) beta ai-platform jobs submit training \
-		"$(GCLOUD_JOB_NAME)" \
-		--stream-logs \
-		--job-dir "$(GCLOUD_JOB_DIR)" \
-		--runtime-version "$(GCLOUD_AI_PLATFORM_RUNTIME)" \
-		--python-version "$(GCLOUD_AI_PLATFORM_PYTHON_VERSION)" \
-		--module-name sciencebeam_trainer_delft.sequence_labelling.grobid_trainer \
-		--package-path sciencebeam_trainer_delft \
-		$(GCLOUD_ARGS) \
-		-- \
-		$(_GROBID_TRAIN_ARGS)
 
 
 grobid-build:

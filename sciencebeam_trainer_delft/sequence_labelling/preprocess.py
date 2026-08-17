@@ -87,8 +87,9 @@ def faster_preprocessor_fit(self: DelftWordPreprocessor, X, y):
     }
     tags = {**tags, **sorted_tags_dict}
 
-    self.vocab_char = chars
-    self.vocab_tag = tags
+    # upstream initialises these to None, then assigns the fitted vocabularies
+    self.vocab_char = chars  # type: ignore[assignment]
+    self.vocab_tag = tags  # type: ignore[assignment]
 
 
 class WordPreprocessor(DelftWordPreprocessor):

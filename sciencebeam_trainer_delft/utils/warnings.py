@@ -1,5 +1,4 @@
 import warnings
-import logging
 
 
 def hide_warnings():
@@ -8,4 +7,3 @@ def hide_warnings():
 
     warnings.simplefilter("ignore")
     warnings.warn = no_warn
-    logging.getLogger('tensorflow').setLevel('ERROR')

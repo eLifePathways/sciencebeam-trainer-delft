@@ -12,9 +12,6 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 
-import sciencebeam_trainer_delft.utils.configure_keras  # noqa, pylint: disable=unused-import
-# pylint: disable=wrong-import-order, ungrouped-imports
-
 import yaml
 
 from sciencebeam_trainer_delft.utils.download_manager import DownloadManager

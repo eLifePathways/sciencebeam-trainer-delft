@@ -13,14 +13,7 @@ from urllib.error import HTTPError
 from urllib.request import urlretrieve
 from typing import List, IO, Iterator, Optional
 
-try:
-    from tensorflow.python.lib.io import file_io as tf_file_io  # type: ignore
-    from tensorflow.python.framework.errors_impl import (  # type: ignore
-        NotFoundError as tf_NotFoundError
-    )
-except ImportError:
-    tf_file_io = None
-    tf_NotFoundError = None
+import fsspec
 
 
 LOGGER = logging.getLogger(__name__)
@@ -28,6 +21,15 @@ LOGGER = logging.getLogger(__name__)
 
 def is_external_location(filepath: str):
     return isinstance(filepath, str) and '://' in filepath
+
+
+def get_filesystem_and_path(filepath: str):
+    """Resolves a URL to the filesystem that serves it, and the path within it.
+
+    The scheme decides the implementation, so `gs://` needs `gcsfs` installed;
+    fsspec raises with the package to install if it is not.
+    """
+    return fsspec.core.url_to_fs(filepath)
 
 
 def path_join(parent, child):
@@ -102,7 +104,7 @@ class GzipCompressionWrapper(CompressionWrapper):
                 local_gzip_file = os.path.join(gzip_dir, os.path.basename(filename))
                 with ClosingGzipFile(filename=local_gzip_file, mode=mode) as local_fp:
                     yield local_fp
-                tf_file_io.copy(local_gzip_file, filename, overwrite=True)
+                copy_file_raw(local_gzip_file, filename)
         else:
             with ClosingGzipFile(filename=filename, mode=mode) as local_fp:
                 yield local_fp
@@ -141,6 +143,10 @@ def strip_compression_filename_ext(filepath: str) -> str:
     return get_compression_wrapper(filepath).strip_compression_filename_ext(filepath)
 
 
+def _get_text_encoding(mode: str) -> Optional[str]:
+    return 'utf-8' if 'b' not in mode else None
+
+
 @contextmanager
 def _open_raw(filepath: str, mode: str) -> Iterator[IO]:
     if filepath.startswith('https://'):
@@ -148,19 +154,20 @@ def _open_raw(filepath: str, mode: str) -> Iterator[IO]:
             with tempfile.TemporaryDirectory(suffix='download') as temp_dir:
                 temp_file = os.path.join(temp_dir, os.path.basename(filepath))
                 urlretrieve(filepath, temp_file)
-                encoding: Optional[str] = 'utf-8' if 'b' not in mode else None
-                with open(temp_file, mode=mode, encoding=encoding) as fp:
+                with open(temp_file, mode=mode, encoding=_get_text_encoding(mode)) as fp:
                     yield fp
         except HTTPError as error:
             if error.code == 404:
                 raise FileNotFoundError('file not found: %s' % filepath) from error
             raise
+    elif is_external_location(filepath):
+        with fsspec.open(
+            filepath, mode=mode, encoding=_get_text_encoding(mode)
+        ) as fp:
+            yield fp
     else:
-        try:
-            with tf_file_io.FileIO(filepath, mode=mode) as fp:
-                yield fp
-        except tf_NotFoundError as e:
-            raise FileNotFoundError('file not found: %s' % filepath) from e
+        with open(filepath, mode=mode, encoding=_get_text_encoding(mode)) as fp:
+            yield fp
 
 
 @contextmanager
@@ -179,21 +186,46 @@ def open_file(filepath: str, mode: str, compression_wrapper: Optional[Compressio
                 mode=mode
             )
     elif mode in {'wb', 'w'}:
-        tf_file_io.recursive_create_dir(os.path.dirname(filepath))
+        _create_directory_for(filepath)
         with compression_wrapper.open(filepath, mode=mode) as target_fp:
             yield target_fp
     else:
         raise ValueError('unsupported mode: %s' % mode)
 
 
-def _require_tf_file_io():
-    if tf_file_io is None:
-        raise ImportError('Cloud storage file transfer requires TensorFlow.')
+def _create_directory_for(filepath: str):
+    directory = os.path.dirname(filepath)
+    if not directory:
+        return
+    if is_external_location(filepath):
+        fs, path = get_filesystem_and_path(filepath)
+        fs.makedirs(os.path.dirname(path), exist_ok=True)
+        return
+    os.makedirs(directory, exist_ok=True)
+
+
+def file_exists(filepath: str) -> bool:
+    if is_external_location(filepath):
+        fs, path = get_filesystem_and_path(filepath)
+        return fs.exists(path)
+    return os.path.exists(filepath)
+
+
+def copy_file_raw(source_filepath: str, target_filepath: str):
+    """Copies bytes without applying a compression wrapper to either side.
+
+    `copy_file` goes through `open_file`, which compresses or decompresses by
+    filename extension; copying a already-compressed file to a compressed
+    target through it would wrap the target again, and recurse.
+    """
+    _create_directory_for(target_filepath)
+    with _open_raw(str(source_filepath), mode='rb') as source_fp:
+        with _open_raw(str(target_filepath), mode='wb') as target_fp:
+            copyfileobj(source_fp, target_fp)
 
 
 def copy_file(source_filepath: str, target_filepath: str, overwrite: bool = True):
-    _require_tf_file_io()
-    if not overwrite and tf_file_io.file_exists(target_filepath):
+    if not overwrite and file_exists(target_filepath):
         LOGGER.info('skipping already existing file: %s', target_filepath)
         return
     with open_file(str(source_filepath), mode='rb') as source_fp:
@@ -202,8 +234,13 @@ def copy_file(source_filepath: str, target_filepath: str, overwrite: bool = True
 
 
 def list_files(directory_path: str) -> List[str]:
-    _require_tf_file_io()
-    return tf_file_io.list_directory(directory_path)
+    """Returns the names of the files in a directory, without their path."""
+    if is_external_location(directory_path):
+        fs, path = get_filesystem_and_path(directory_path)
+        # fsspec lists full paths, where callers join the name back onto the
+        # directory they asked about
+        return [os.path.basename(name) for name in fs.ls(path, detail=False)]
+    return os.listdir(directory_path)
 
 
 def is_binary_mode(mode: str) -> bool:

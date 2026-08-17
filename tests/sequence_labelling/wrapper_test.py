@@ -1,11 +1,9 @@
 import logging
 from pathlib import Path
-from typing import Dict
 
 import pytest
 
-import numpy as np
-import tf_keras as keras
+import torch
 
 from delft.sequenceLabelling.preprocess import (
     Preprocessor as DelftWordPreprocessor,
@@ -25,7 +23,8 @@ from sciencebeam_trainer_delft.sequence_labelling.wrapper import (
 )
 
 from sciencebeam_trainer_delft.sequence_labelling.transfer_learning import (
-    TransferLearningConfig
+    TransferLearningConfig,
+    TransferModelWrapper
 )
 
 from ..test_utils import log_on_exception
@@ -80,17 +79,10 @@ class TestSequence:
         assert model.embedding_manager.path == DEFAULT_RESOURCE_REGISTRY_FILE
 
 
-def get_layer_by_name_map(keras_model: keras.Model) -> Dict[str, keras.layers.Layer]:
-    return {
-        layer.name: layer
-        for layer in keras_model.layers
-    }
-
-
-def get_layer_by_name(keras_model: keras.Model, layer_name) -> keras.layers.Layer:
-    layer_by_name_map = get_layer_by_name_map(keras_model)
-    LOGGER.debug('layer_by_name_map: %s', layer_by_name_map)
-    return layer_by_name_map[layer_name]
+def get_layer_weights(model, layer_name: str):
+    wrapped_model = TransferModelWrapper(model)
+    LOGGER.debug('layer_names: %s', wrapped_model.layer_names)
+    return wrapped_model.get_layer_weights(layer_name)
 
 
 @pytest.mark.slow
@@ -122,7 +114,7 @@ class TestSequenceEndToEnd:
         )
         model_wrapper.train(**train_kwargs)  # type: ignore
         layer_name = 'word_lstm'
-        expected_weights_list = get_layer_by_name(model_wrapper.model, layer_name).get_weights()
+        expected_weights = get_layer_weights(model_wrapper.model, layer_name)
         model_wrapper.save(str(tmp_path))
         model_wrapper_2 = Sequence(
             MODEL_NAME_1,
@@ -134,11 +126,10 @@ class TestSequenceEndToEnd:
             **model_kwargs  # type: ignore
         )
         model_wrapper_2.train(**train_kwargs)  # type: ignore
-        actual_weights_list = get_layer_by_name(model_wrapper_2.model, layer_name).get_weights()
-        assert len(actual_weights_list) == len(expected_weights_list)
-        for i, (actual_weights, expected_weights) in enumerate(
-            zip(actual_weights_list, expected_weights_list)
-        ):
-            LOGGER.debug('expected_weights(%d):\n%s', i, expected_weights)
-            LOGGER.debug('actual_weights(%d):\n%s', i, actual_weights)
-            np.testing.assert_allclose(actual_weights, expected_weights)
+        actual_weights = get_layer_weights(model_wrapper_2.model, layer_name)
+        assert set(actual_weights) == set(expected_weights)
+        for name, expected_weight in expected_weights.items():
+            LOGGER.debug('expected_weights(%s):\n%s', name, expected_weight)
+            LOGGER.debug('actual_weights(%s):\n%s', name, actual_weights[name])
+            # the layer was frozen, so training cannot have changed it
+            assert torch.equal(actual_weights[name], expected_weight)

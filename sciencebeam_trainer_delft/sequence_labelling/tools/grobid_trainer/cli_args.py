@@ -104,7 +104,14 @@ def add_common_arguments(
         help="Do not use LMDB embedding cache (load embeddings into memory instead)"
     )
 
-    parser.add_argument("--multiprocessing", action="store_true", help="Use multiprocessing")
+    parser.add_argument(
+        "--multiprocessing", action="store_true",
+        help=(
+            "No effect: batches are built in the calling process, because"
+            " word embeddings are read from an LMDB environment that is not"
+            " fork-safe. Accepted so existing commands keep working"
+        )
+    )
 
     parser.add_argument("--quiet", action="store_true", help="Only log errors")
 
@@ -126,6 +133,8 @@ def add_common_arguments(
     )
 
     parser.add_argument("--job-dir", help="job dir (only used when running via ai platform)")
+
+    add_device_argument(parser)
 
 
 def add_model_path_argument(parser: argparse.ArgumentParser, **kwargs):
@@ -270,7 +279,12 @@ def add_stateful_argument(parser: argparse.ArgumentParser, **kwargs):
         dest="stateful",
         default=default_value,
         action="store_true",
-        help="Make RNNs stateful (required for truncated BPTT)",
+        help=(
+            "Group windows of a document across batches."
+            " The RNNs are not stateful: torch does not carry LSTM state"
+            " between batches, so this only affects how windowed input is"
+            " batched, and disables shuffling between epochs"
+        ),
         **kwargs
     )
     parser.add_argument(
@@ -297,6 +311,16 @@ def add_require_gpu_argument(parser: argparse.ArgumentParser):
         "--require-gpu",
         action="store_true",
         help="Fail training immediately if no GPU device is available"
+    )
+
+
+def add_device_argument(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "--device",
+        help=(
+            "the torch device to run on, e.g. 'cpu' or 'cuda'"
+            " (default: cuda when available, otherwise cpu)"
+        )
     )
 
 

@@ -45,6 +45,8 @@ services:
       target: delft
       args:
         wapiti_source_download_url: ${WAPITI_SOURCE_DOWNLOAD_URL}
+        # gpu for the image trained on Vertex AI, see TORCH_EXTRA
+        torch_extra: ${TORCH_EXTRA:-cpu}
     image: elifesciences/sciencebeam-trainer-delft:${IMAGE_TAG}
     volumes:
       - data:/opt/sciencebeam-trainer-delft/data
