@@ -358,6 +358,13 @@ class Sequence:
         )
         LOGGER.info('training_config: %s', vars(self.training_config))
         self.multiprocessing = multiprocessing
+        if multiprocessing:
+            # requirement 9: a flag that stopped having an effect has to say so
+            LOGGER.warning(
+                'multiprocessing has no effect: batches are built in the calling'
+                ' process, since the embeddings are read from an LMDB environment'
+                ' that is not fork-safe'
+            )
         self.tag_debug_reporter = get_tag_debug_reporter_if_enabled()
         self._load_exception: Optional[Exception] = None
         self.p: Optional[Preprocessor] = None

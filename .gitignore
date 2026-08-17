@@ -1,6 +1,5 @@
 venv
 .venv
-.venv-cudnn8-compat
 build
 data
 dist
