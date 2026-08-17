@@ -28,15 +28,17 @@ delft = [
     "h5py>=3.16.0",
 ]
 # torch is declared directly so [tool.uv.sources] applies: uv sources are not
-# honoured for a transitive requirement, so relying on delft's own
-# `torch==2.11.0` resolves the CUDA wheel from PyPI instead. The two extras
-# select which wheel, and conflict, so exactly one has to be asked for --
-# `--all-extras` is therefore not usable and every install names its extras
+# honoured for a transitive requirement, so relying on delft's own pin resolves
+# the CUDA wheel from PyPI instead. The two extras select which wheel, and
+# conflict, so exactly one has to be asked for -- `--all-extras` is therefore
+# not usable and every install names its extras.
+# Deliberately unversioned: delft pins the version exactly, so a version here
+# is a second source of truth that can only ever disagree with it.
 cpu = [
-    "torch==2.11.0",
+    "torch",
 ]
 gpu = [
-    "torch==2.11.0",
+    "torch",
 ]
 
 [dependency-groups]

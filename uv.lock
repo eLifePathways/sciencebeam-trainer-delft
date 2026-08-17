@@ -3041,8 +3041,8 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.26.4" },
     { name = "requests", specifier = ">=2.27.1" },
     { name = "scikit-learn", specifier = ">=1.6.1" },
-    { name = "torch", marker = "extra == 'cpu'", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "sciencebeam-trainer-delft", extra = "cpu" } },
-    { name = "torch", marker = "extra == 'gpu'", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/cu130", conflict = { package = "sciencebeam-trainer-delft", extra = "gpu" } },
+    { name = "torch", marker = "extra == 'cpu'", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "sciencebeam-trainer-delft", extra = "cpu" } },
+    { name = "torch", marker = "extra == 'gpu'", index = "https://download.pytorch.org/whl/cu130", conflict = { package = "sciencebeam-trainer-delft", extra = "gpu" } },
     { name = "tqdm", specifier = ">=4.66.3" },
     { name = "typing-extensions", specifier = ">=4.15.0" },
 ]
