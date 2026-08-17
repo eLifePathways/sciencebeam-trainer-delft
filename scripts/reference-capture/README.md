@@ -45,6 +45,28 @@ Covers the 12 `delft` cases in
 read from that file so the two stay in step. Writes `tagged_output.xml` and
 `eval.json` per case. Use `--case-id=<id>`, repeatable, for a subset.
 
+## Comparing a capture against the recorded one
+
+The end-to-end capture goes through this repo's own tag and eval helpers, so it
+records whatever the checkout it runs in produces and needs no TensorFlow. That
+makes it usable on both sides: capture on a TensorFlow-era commit, capture again
+here, and compare.
+
+```bash
+export PYTHONPATH=.
+SCRIPTS=scripts/reference-capture
+
+.venv/bin/python $SCRIPTS/capture_e2e_reference_outputs.py \
+    --output-path=data/reference/e2e-torch
+
+.venv/bin/python $SCRIPTS/compare_e2e_reference_outputs.py \
+    data/reference/e2e data/reference/e2e-torch
+```
+
+Tagged output and scores are compared exactly, and it exits non-zero on any
+difference. Only the per-token capture (`capture_reference_outputs.py`) needs
+TensorFlow, because it reads the Keras model directly.
+
 ## Notes
 
 - Several cases score a model against a corpus it was not trained on, so the
