@@ -44,10 +44,14 @@ jobs:
             IMAGE_NAME="${DOCKER_IMAGE}_unstable"
             IMAGE_TAG="${GITHUB_SHA}"
             TAG_LINES="${TAG_LINES}delft.tags=${IMAGE_NAME}:${GIT_BRANCH}-${SHORT_SHA}-${TIMESTAMP}\n"
+            TAG_LINES="${TAG_LINES}delft.tags=${IMAGE_NAME}:${GIT_BRANCH}-${SHORT_SHA}-${TIMESTAMP}-cpu\n"
             TAG_LINES="${TAG_LINES}delft-gpu.tags=${IMAGE_NAME}:${GIT_BRANCH}-${SHORT_SHA}-${TIMESTAMP}-gpu\n"
           fi
+          # the unsuffixed tags stay for compatibility, and are the same image as -cpu
           TAG_LINES="${TAG_LINES}delft.tags=${IMAGE_NAME}:${IMAGE_TAG}\n"
+          TAG_LINES="${TAG_LINES}delft.tags=${IMAGE_NAME}:${IMAGE_TAG}-cpu\n"
           TAG_LINES="${TAG_LINES}delft.tags=${IMAGE_NAME}:latest\n"
+          TAG_LINES="${TAG_LINES}delft.tags=${IMAGE_NAME}:latest-cpu\n"
           TAG_LINES="${TAG_LINES}delft-gpu.tags=${IMAGE_NAME}:${IMAGE_TAG}-gpu\n"
           TAG_LINES="${TAG_LINES}delft-gpu.tags=${IMAGE_NAME}:latest-gpu\n"
           echo -e "tag_lines<<EOF\n${TAG_LINES}EOF" >> $GITHUB_OUTPUT
