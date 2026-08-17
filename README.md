@@ -34,6 +34,34 @@ apt-get install libsqlite3-dev
 PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install --force 3.9.17
 ```
 
+## Installing
+
+Two extras select which PyTorch wheel is installed, and they conflict, so
+exactly one is named:
+
+```bash
+uv sync --extra delft --extra gcs --extra cpu --all-groups   # or --extra gpu
+```
+
+`--all-extras` therefore does not work.
+
+**Depending on this package from another project.** The index that provides the
+CPU wheel is configured here, and uv does not carry a source across to a project
+that depends on this one from a registry - so a downstream project resolves
+`torch` from PyPI, which on Linux is the CUDA build and pulls the whole nvidia
+stack. To get the CPU wheel, repeat the index configuration in that project's
+own `pyproject.toml`:
+
+```toml
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+```
+
 ## Models Saved Before the PyTorch Migration
 
 Model directories written by a release before the PyTorch migration hold a Keras
