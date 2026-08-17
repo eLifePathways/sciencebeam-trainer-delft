@@ -664,8 +664,7 @@ dependencies = [
     { name = "numpy" },
     { name = "pandas" },
     { name = "pillow" },
-    { name = "protobuf", version = "4.25.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "protobuf", version = "7.35.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "protobuf" },
     { name = "python-dotenv" },
     { name = "pytorch-crf" },
     { name = "regex" },
@@ -853,8 +852,41 @@ wheels = [
 
 [[package]]
 name = "fsspec"
+version = "2025.12.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version >= '3.14' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version >= '3.14' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b6/27/954057b0d1f53f086f681755207dda6de6c660ce133c829158e8e8fe7895/fsspec-2025.12.0.tar.gz", hash = "sha256:c505de011584597b1060ff778bb664c1bc022e87921b0e4f10cc9c44f9635973", size = 309748, upload-time = "2025-12-03T15:23:42.687Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/51/c7/b64cae5dba3a1b138d7123ec36bb5ccd39d39939f18454407e5468f4763f/fsspec-2025.12.0-py3-none-any.whl", hash = "sha256:8bf1fe301b7d8acfa6e8571e3b1c3d158f909666642431cc78a1b7b4dbc5ec5b", size = 201422, upload-time = "2025-12-03T15:23:41.434Z" },
+]
+
+[[package]]
+name = "fsspec"
 version = "2026.7.0"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version == '3.13.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.12.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.11.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version < '3.11' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.13.*' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.12.*' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.11.*' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version < '3.11' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.13.*' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.12.*' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.11.*' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version < '3.11' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.13.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.12.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.11.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version < '3.11' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+]
 sdist = { url = "https://files.pythonhosted.org/packages/00/78/f34251dadb8f3921264a1d9b8946f5e542014ee2614b285261b4e40e6775/fsspec-2026.7.0.tar.gz", hash = "sha256:c803c40f4cf860b49dea58ee3e1c33cb9c790520e233537e1340049f89b82a88", size = 317040, upload-time = "2026-07-28T16:34:51.052Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fd/3c/6a2bf344106328fd04963664a60b9bb6496fc25df8e962fcdc1367285fb9/fsspec-2026.7.0-py3-none-any.whl", hash = "sha256:b57ddbafedfaef7018c1ecab32aa200a9d7ca26b77965f64e48b70061249d279", size = 206583, upload-time = "2026-07-28T16:34:49.538Z" },
@@ -862,21 +894,92 @@ wheels = [
 
 [[package]]
 name = "gcsfs"
+version = "2025.12.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version >= '3.14' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version >= '3.14' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+]
+dependencies = [
+    { name = "aiohttp", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "decorator", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "fsspec", version = "2025.12.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "google-auth", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "google-auth-oauthlib", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "google-cloud-storage", version = "3.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "google-cloud-storage-control", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "requests", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3e/3e/453b42bbcda2177daba97ebc5202faf5c57cc0c2bb4aac7081c12b0471da/gcsfs-2025.12.0.tar.gz", hash = "sha256:9a9c1c32b7899a3967ba30a7e9422cdfda596266f03476cdf5545402b8af4cd5", size = 95148, upload-time = "2025-12-03T15:44:59.703Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b1/bf/e664cbeab8f2a8b097c0604252760410fde191fe6ac7d5081b29e601ac52/gcsfs-2025.12.0-py3-none-any.whl", hash = "sha256:e06aaec53797dc6b83d5cc90c4d3ae7247b4ee0cf8d8b1ce50e8d6b78e3a9aea", size = 41204, upload-time = "2025-12-03T15:44:58.464Z" },
+]
+
+[[package]]
+name = "gcsfs"
 version = "2026.7.0"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version == '3.13.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.12.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.11.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version < '3.11' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.13.*' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.12.*' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.11.*' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version < '3.11' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.13.*' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.12.*' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.11.*' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version < '3.11' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.13.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.12.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.11.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version < '3.11' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+]
 dependencies = [
-    { name = "aiohttp" },
-    { name = "decorator" },
-    { name = "fsspec" },
-    { name = "google-auth" },
-    { name = "google-auth-oauthlib" },
-    { name = "google-cloud-storage" },
-    { name = "google-cloud-storage-control" },
-    { name = "requests" },
+    { name = "aiohttp", marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "decorator", marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "fsspec", version = "2026.7.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "google-auth", marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "google-auth-oauthlib", marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "google-cloud-storage", version = "3.13.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "google-cloud-storage-control", marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "requests", marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d3/33/58e23c6f492e091c2f01ae1bffe331aa97e18a0b3d24ff90ef648335ddc8/gcsfs-2026.7.0.tar.gz", hash = "sha256:2df36ce1e9010e76dc4295774030495a97496838483c619e9f63bc0ab7bdc770", size = 1265874, upload-time = "2026-07-06T15:02:30.683Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ef/eb/a5c4b39903928e6be7735cc7aa31b6c3bbf3d887419e1e7ac751dba02233/gcsfs-2026.7.0-py3-none-any.whl", hash = "sha256:8ce6c08ea64302d8fd4bc23a615ccd9e7752541cde1a88ec8362109bd79cde78", size = 91131, upload-time = "2026-07-06T15:02:29.208Z" },
+]
+
+[[package]]
+name = "google-api-core"
+version = "2.25.2"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version >= '3.14' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version >= '3.14' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+]
+dependencies = [
+    { name = "google-auth", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "googleapis-common-protos", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "proto-plus", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "protobuf", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "requests", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/09/cd/63f1557235c2440fe0577acdbc32577c5c002684c58c7f4d770a92366a24/google_api_core-2.25.2.tar.gz", hash = "sha256:1c63aa6af0d0d5e37966f157a77f9396d820fba59f9e43e9415bc3dc5baff300", size = 166266, upload-time = "2025-10-03T00:07:34.778Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c8/d8/894716a5423933f5c8d2d5f04b16f052a515f78e815dab0c2c6f1fd105dc/google_api_core-2.25.2-py3-none-any.whl", hash = "sha256:e9a8f62d363dc8424a8497f4c2a47d6bcda6c16514c935629c257ab5d10210e7", size = 162489, upload-time = "2025-10-03T00:07:32.924Z" },
+]
+
+[package.optional-dependencies]
+grpc = [
+    { name = "grpcio", version = "1.83.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "grpcio-status", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
 ]
 
 [[package]]
@@ -905,8 +1008,7 @@ dependencies = [
     { name = "google-auth", marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "googleapis-common-protos", marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "proto-plus", marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "protobuf", version = "4.25.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "protobuf", version = "7.35.1", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.12' and python_full_version < '3.14') or (python_full_version < '3.12' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu') or (python_full_version >= '3.14' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "protobuf", marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "requests", marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/16/ce/502a57fb0ec752026d24df1280b162294b22a0afb98a326084f9a979138b/google_api_core-2.30.3.tar.gz", hash = "sha256:e601a37f148585319b26db36e219df68c5d07b6382cff2d580e83404e44d641b", size = 177001, upload-time = "2026-04-10T00:41:28.035Z" }
@@ -917,35 +1019,7 @@ wheels = [
 [package.optional-dependencies]
 grpc = [
     { name = "grpcio", version = "1.76.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "grpcio-status", version = "1.62.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-]
-
-[[package]]
-name = "google-api-core"
-version = "2.33.0"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.14' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version >= '3.14' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version >= '3.14' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version >= '3.14' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-]
-dependencies = [
-    { name = "google-auth", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "googleapis-common-protos", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "proto-plus", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "protobuf", version = "7.35.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "requests", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/87/62/8fb1fb647d2788c950d69d6a769cd9d55c918ac1fc57be2f90b7e4029787/google_api_core-2.33.0.tar.gz", hash = "sha256:3a36bcc3e319783f4c97da41f6f45ea6ffcaa55848e341de16e09cb70243c2bb", size = 181607, upload-time = "2026-07-22T16:28:28.027Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/89/31/5056a347bb934ea04583c8b27916ef1501729c72638629545bce26ff4223/google_api_core-2.33.0-py3-none-any.whl", hash = "sha256:a2e22a0c1d0f03eafff1858b38cf46f832d5902b0c052235bf0ab8402929fbdc", size = 176462, upload-time = "2026-07-22T16:28:22.447Z" },
-]
-
-[package.optional-dependencies]
-grpc = [
-    { name = "grpcio", version = "1.83.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "grpcio-status", version = "1.83.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "grpcio-status", marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
 ]
 
 [[package]]
@@ -979,8 +1053,8 @@ name = "google-cloud-core"
 version = "2.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "google-api-core", version = "2.25.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "google-api-core", version = "2.30.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "google-api-core", version = "2.33.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "google-auth" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a8/dd/1eef226e470369b26824a505c34482c0b493bc35fe8e0c6b003b5feca21a/google_cloud_core-2.6.0.tar.gz", hash = "sha256:e76149739f90fac1fc6757c09f47eaccb3145b54adbd7759b0f7c4b235f46c83", size = 36001, upload-time = "2026-05-07T08:04:04.124Z" }
@@ -990,16 +1064,56 @@ wheels = [
 
 [[package]]
 name = "google-cloud-storage"
+version = "3.4.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version >= '3.14' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version >= '3.14' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+]
+dependencies = [
+    { name = "google-api-core", version = "2.25.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "google-auth", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "google-cloud-core", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "google-crc32c", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "google-resumable-media", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "requests", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/bd/ef/7cefdca67a6c8b3af0ec38612f9e78e5a9f6179dd91352772ae1a9849246/google_cloud_storage-3.4.1.tar.gz", hash = "sha256:6f041a297e23a4b485fad8c305a7a6e6831855c208bcbe74d00332a909f82268", size = 17238203, upload-time = "2025-10-08T18:43:39.665Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/83/6e/b47d83d3a35231c6232566341b0355cce78fd4e6988a7343725408547b2c/google_cloud_storage-3.4.1-py3-none-any.whl", hash = "sha256:972764cc0392aa097be8f49a5354e22eb47c3f62370067fb1571ffff4a1c1189", size = 290142, upload-time = "2025-10-08T18:43:37.524Z" },
+]
+
+[[package]]
+name = "google-cloud-storage"
 version = "3.13.0"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version == '3.13.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.12.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.11.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version < '3.11' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.13.*' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.12.*' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.11.*' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version < '3.11' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.13.*' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.12.*' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.11.*' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version < '3.11' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.13.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.12.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version == '3.11.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+    "python_full_version < '3.11' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
+]
 dependencies = [
     { name = "google-api-core", version = "2.30.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "google-api-core", version = "2.33.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "google-auth" },
-    { name = "google-cloud-core" },
-    { name = "google-crc32c" },
-    { name = "google-resumable-media" },
-    { name = "requests" },
+    { name = "google-auth", marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "google-cloud-core", marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "google-crc32c", marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "google-resumable-media", marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "requests", marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e3/25/355ed97c1723c787dfaa888808d55db18371f82c38ff862357b1e902cd19/google_cloud_storage-3.13.0.tar.gz", hash = "sha256:d11d8706ea1520fba0f21043bcb7897caf7015d76ce1ad9a4f60237e4d7a9f6c", size = 17340960, upload-time = "2026-07-13T19:10:07.524Z" }
 wheels = [
@@ -1011,15 +1125,14 @@ name = "google-cloud-storage-control"
 version = "1.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "google-api-core", version = "2.25.2", source = { registry = "https://pypi.org/simple" }, extra = ["grpc"], marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "google-api-core", version = "2.30.3", source = { registry = "https://pypi.org/simple" }, extra = ["grpc"], marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "google-api-core", version = "2.33.0", source = { registry = "https://pypi.org/simple" }, extra = ["grpc"], marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "google-auth" },
     { name = "grpc-google-iam-v1" },
     { name = "grpcio", version = "1.76.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "grpcio", version = "1.83.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "proto-plus" },
-    { name = "protobuf", version = "4.25.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "protobuf", version = "7.35.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "protobuf" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/88/ae/707995271f77e3c1da715c740160f98f87a79a5c601b28d17c4d2500c037/google_cloud_storage_control-1.12.0.tar.gz", hash = "sha256:49090d03532c0c84c6246a5fd490c31fd4bbffb4c7771c0a6744ec23a194a5f6", size = 137036, upload-time = "2026-06-03T16:14:00.921Z" }
 wheels = [
@@ -1078,8 +1191,7 @@ name = "googleapis-common-protos"
 version = "1.75.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "protobuf", version = "4.25.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "protobuf", version = "7.35.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "protobuf" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/b5/c8/f439cffde755cffa462bfbb156278fa6f9d09119719af9814b858fd4f81f/googleapis_common_protos-1.75.0.tar.gz", hash = "sha256:53a062ff3c32552fbd62c11fe23768b78e4ddf0494d5e5fd97d3f4689c75fbbd", size = 151035, upload-time = "2026-05-07T08:04:49.423Z" }
 wheels = [
@@ -1100,8 +1212,7 @@ dependencies = [
     { name = "googleapis-common-protos", extra = ["grpc"] },
     { name = "grpcio", version = "1.76.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "grpcio", version = "1.83.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "protobuf", version = "4.25.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "protobuf", version = "7.35.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "protobuf" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/44/4f/d098419ad0bfc06c9ce440575f05aa22d8973b6c276e86ac7890093d3c37/grpc_google_iam_v1-0.14.4.tar.gz", hash = "sha256:392b3796947ed6334e61171d9ab06bf7eb357f554e5fc7556ad7aab6d0e17038", size = 23706, upload-time = "2026-04-01T01:57:49.813Z" }
 wheels = [
@@ -1258,53 +1369,15 @@ wheels = [
 name = "grpcio-status"
 version = "1.62.3"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version == '3.13.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.12.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.11.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version < '3.11' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.13.*' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.12.*' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.11.*' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version < '3.11' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.13.*' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.12.*' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.11.*' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version < '3.11' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.13.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.12.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.11.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version < '3.11' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-]
 dependencies = [
-    { name = "googleapis-common-protos", marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "googleapis-common-protos" },
     { name = "grpcio", version = "1.76.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "protobuf", version = "4.25.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "protobuf", version = "7.35.1", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.12' and python_full_version < '3.14') or (python_full_version < '3.12' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu') or (python_full_version >= '3.14' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "grpcio", version = "1.83.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "protobuf" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/7c/d7/013ef01c5a1c2fd0932c27c904934162f69f41ca0f28396d3ffe4d386123/grpcio-status-1.62.3.tar.gz", hash = "sha256:289bdd7b2459794a12cf95dc0cb727bd4a1742c37bd823f760236c937e53a485", size = 13063, upload-time = "2024-08-06T00:37:08.003Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/90/40/972271de05f9315c0d69f9f7ebbcadd83bc85322f538637d11bb8c67803d/grpcio_status-1.62.3-py3-none-any.whl", hash = "sha256:f9049b762ba8de6b1086789d8315846e094edac2c50beaf462338b301a8fd4b8", size = 14448, upload-time = "2024-08-06T00:30:15.702Z" },
-]
-
-[[package]]
-name = "grpcio-status"
-version = "1.83.0"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.14' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version >= '3.14' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version >= '3.14' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version >= '3.14' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-]
-dependencies = [
-    { name = "googleapis-common-protos", marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "grpcio", version = "1.83.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "protobuf", version = "7.35.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/52/fd/848dd7e009de85f8ca59999d1cc618ff8ebf7ea5636d083a47455d212d24/grpcio_status-1.83.0.tar.gz", hash = "sha256:837219c6de9afdccb6f6f72b34bc71e151a2011ef04040e3faaca746a57e54ae", size = 13965, upload-time = "2026-07-23T15:24:26.98Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d6/00/73204406228cf989bea6b0fd9fe4702fab49a8a152a0c6f90856dadb6ac7/grpcio_status-1.83.0-py3-none-any.whl", hash = "sha256:f6a838a7c5fb84ae98833ec0ef81ed438c26e11e54b2ddb8e92ad328c861de69", size = 14636, upload-time = "2026-07-23T15:23:49.044Z" },
 ]
 
 [[package]]
@@ -1433,7 +1506,8 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "filelock" },
-    { name = "fsspec" },
+    { name = "fsspec", version = "2025.12.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "fsspec", version = "2026.7.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "hf-xet", marker = "platform_machine == 'AMD64' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "httpx" },
     { name = "packaging" },
@@ -2503,8 +2577,7 @@ name = "proto-plus"
 version = "1.28.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "protobuf", version = "4.25.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "protobuf", version = "7.35.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "protobuf" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/73/3e/29e0d6a2c5adde6ab5772253fd16ab346324026b89a66e354689c86d0584/proto_plus-1.28.2.tar.gz", hash = "sha256:26d843eb99c1e32fdf1d20ff0faae56607f7748fe774acf9ecd5cfe6c6472501", size = 58063, upload-time = "2026-07-22T16:28:29.119Z" }
 wheels = [
@@ -2513,55 +2586,16 @@ wheels = [
 
 [[package]]
 name = "protobuf"
-version = "4.25.8"
+version = "5.29.6"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version == '3.11.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version < '3.11' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.11.*' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version < '3.11' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.11.*' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version < '3.11' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.11.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version < '3.11' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-]
-sdist = { url = "https://files.pythonhosted.org/packages/df/01/34c8d2b6354906d728703cb9d546a0e534de479e25f1b581e4094c4a85cc/protobuf-4.25.8.tar.gz", hash = "sha256:6135cf8affe1fc6f76cced2641e4ea8d3e59518d1f24ae41ba97bcad82d397cd", size = 380920, upload-time = "2025-05-28T14:22:25.153Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7e/57/394a763c103e0edf87f0938dafcd918d53b4c011dfc5c8ae80f3b0452dbb/protobuf-5.29.6.tar.gz", hash = "sha256:da9ee6a5424b6b30fd5e45c5ea663aef540ca95f9ad99d1e887e819cdf9b8723", size = 425623, upload-time = "2026-02-04T22:54:40.584Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/45/ff/05f34305fe6b85bbfbecbc559d423a5985605cad5eda4f47eae9e9c9c5c5/protobuf-4.25.8-cp310-abi3-win32.whl", hash = "sha256:504435d831565f7cfac9f0714440028907f1975e4bed228e58e72ecfff58a1e0", size = 392745, upload-time = "2025-05-28T14:22:10.524Z" },
-    { url = "https://files.pythonhosted.org/packages/08/35/8b8a8405c564caf4ba835b1fdf554da869954712b26d8f2a98c0e434469b/protobuf-4.25.8-cp310-abi3-win_amd64.whl", hash = "sha256:bd551eb1fe1d7e92c1af1d75bdfa572eff1ab0e5bf1736716814cdccdb2360f9", size = 413736, upload-time = "2025-05-28T14:22:13.156Z" },
-    { url = "https://files.pythonhosted.org/packages/28/d7/ab27049a035b258dab43445eb6ec84a26277b16105b277cbe0a7698bdc6c/protobuf-4.25.8-cp37-abi3-macosx_10_9_universal2.whl", hash = "sha256:ca809b42f4444f144f2115c4c1a747b9a404d590f18f37e9402422033e464e0f", size = 394537, upload-time = "2025-05-28T14:22:14.768Z" },
-    { url = "https://files.pythonhosted.org/packages/bd/6d/a4a198b61808dd3d1ee187082ccc21499bc949d639feb948961b48be9a7e/protobuf-4.25.8-cp37-abi3-manylinux2014_aarch64.whl", hash = "sha256:9ad7ef62d92baf5a8654fbb88dac7fa5594cfa70fd3440488a5ca3bfc6d795a7", size = 294005, upload-time = "2025-05-28T14:22:16.052Z" },
-    { url = "https://files.pythonhosted.org/packages/d6/c6/c9deaa6e789b6fc41b88ccbdfe7a42d2b82663248b715f55aa77fbc00724/protobuf-4.25.8-cp37-abi3-manylinux2014_x86_64.whl", hash = "sha256:83e6e54e93d2b696a92cad6e6efc924f3850f82b52e1563778dfab8b355101b0", size = 294924, upload-time = "2025-05-28T14:22:17.105Z" },
-    { url = "https://files.pythonhosted.org/packages/0c/c1/6aece0ab5209981a70cd186f164c133fdba2f51e124ff92b73de7fd24d78/protobuf-4.25.8-py3-none-any.whl", hash = "sha256:15a0af558aa3b13efef102ae6e4f3efac06f1eea11afb3a57db2901447d9fb59", size = 156757, upload-time = "2025-05-28T14:22:24.135Z" },
-]
-
-[[package]]
-name = "protobuf"
-version = "7.35.1"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.14' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.13.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.12.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version >= '3.14' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.13.*' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.12.*' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version >= '3.14' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.13.*' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.12.*' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version >= '3.14' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.13.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-    "python_full_version == '3.12.*' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu'",
-]
-sdist = { url = "https://files.pythonhosted.org/packages/da/01/9ef0afd7999eb9badb3a768b4aedd78c86d4c65cfaf1958ab276199e76b4/protobuf-7.35.1.tar.gz", hash = "sha256:ce115a26fe0c39a2c29973d914d327e516a6455464489fe3cd1e51a1b354f81a", size = 458717, upload-time = "2026-06-11T21:55:40.257Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/10/03/8aeeb7458d22546bf64b5250ca1daeb5ff757d900e8e4a7476c6f0db843e/protobuf-7.35.1-cp310-abi3-macosx_10_9_universal2.whl", hash = "sha256:24f857477359a85c0c235261b8ba905fd51b2562f4a64ca1df5473f29850cbf6", size = 433226, upload-time = "2026-06-11T21:55:31.719Z" },
-    { url = "https://files.pythonhosted.org/packages/37/4b/dfb89eb0e652a1ff073c39a59fb5e3a83cfe9b57a2c83fa6d78270101767/protobuf-7.35.1-cp310-abi3-manylinux2014_aarch64.whl", hash = "sha256:11d6b0ec246892d85215b0a13ca6e0233cf5284b68f0ac02646427f4ff88a799", size = 328847, upload-time = "2026-06-11T21:55:34.035Z" },
-    { url = "https://files.pythonhosted.org/packages/0f/58/dc12f2cd484951524af6e3382c785869b9b3fb5e52ee95ae23add53ee8f9/protobuf-7.35.1-cp310-abi3-manylinux2014_s390x.whl", hash = "sha256:b73f9489a4b8b1c9cb1f8ed951c736392592edb24b9d6819f36d2e10b171d5b4", size = 344030, upload-time = "2026-06-11T21:55:34.941Z" },
-    { url = "https://files.pythonhosted.org/packages/e4/be/5b3cfe508bfab6761414ff944e3366eb13be4fd71efcd69450f89ba39f43/protobuf-7.35.1-cp310-abi3-manylinux2014_x86_64.whl", hash = "sha256:74758715c53d7158fb76caf4f0cfdacc5329a4b1bb994f865d6cf302d413a1c4", size = 327130, upload-time = "2026-06-11T21:55:35.921Z" },
-    { url = "https://files.pythonhosted.org/packages/d8/bc/6d6c7ba8709c85f8f2c390b2b118d6fb08a783676a572271851bf45a7d22/protobuf-7.35.1-cp310-abi3-win32.whl", hash = "sha256:353652e4efd0bca5b5fc2656abf8307ef351f0cf938c9eba09f0e09c20a25c30", size = 428945, upload-time = "2026-06-11T21:55:37.034Z" },
-    { url = "https://files.pythonhosted.org/packages/0a/19/8d0cb6f20a1ef7b18f1c8986ad5783f22f84cce39c6ce9a6e645ea55192e/protobuf-7.35.1-cp310-abi3-win_amd64.whl", hash = "sha256:230a75ddfc2de4806e56696ce9640c1cdfdb6543b7cfce98d42a4c0a0e7bdb87", size = 439996, upload-time = "2026-06-11T21:55:38.123Z" },
-    { url = "https://files.pythonhosted.org/packages/19/c7/5f7c636ec43e0c545e28d1f1db71990108306f7bdcb89f069ba97e428e7f/protobuf-7.35.1-py3-none-any.whl", hash = "sha256:4bc97768d8fe4ad6743c8a19403e314511ed9f6d13205b687e52421c023ac1b9", size = 171659, upload-time = "2026-06-11T21:55:39.155Z" },
+    { url = "https://files.pythonhosted.org/packages/d4/88/9ee58ff7863c479d6f8346686d4636dd4c415b0cbeed7a6a7d0617639c2a/protobuf-5.29.6-cp310-abi3-win32.whl", hash = "sha256:62e8a3114992c7c647bce37dcc93647575fc52d50e48de30c6fcb28a6a291eb1", size = 423357, upload-time = "2026-02-04T22:54:25.805Z" },
+    { url = "https://files.pythonhosted.org/packages/1c/66/2dc736a4d576847134fb6d80bd995c569b13cdc7b815d669050bf0ce2d2c/protobuf-5.29.6-cp310-abi3-win_amd64.whl", hash = "sha256:7e6ad413275be172f67fdee0f43484b6de5a904cc1c3ea9804cb6fe2ff366eda", size = 435175, upload-time = "2026-02-04T22:54:28.592Z" },
+    { url = "https://files.pythonhosted.org/packages/06/db/49b05966fd208ae3f44dcd33837b6243b4915c57561d730a43f881f24dea/protobuf-5.29.6-cp38-abi3-macosx_10_9_universal2.whl", hash = "sha256:b5a169e664b4057183a34bdc424540e86eea47560f3c123a0d64de4e137f9269", size = 418619, upload-time = "2026-02-04T22:54:30.266Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/d7/48cbf6b0c3c39761e47a99cb483405f0fde2be22cf00d71ef316ce52b458/protobuf-5.29.6-cp38-abi3-manylinux2014_aarch64.whl", hash = "sha256:a8866b2cff111f0f863c1b3b9e7572dc7eaea23a7fae27f6fc613304046483e6", size = 320284, upload-time = "2026-02-04T22:54:31.782Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/dd/cadd6ec43069247d91f6345fa7a0d2858bef6af366dbd7ba8f05d2c77d3b/protobuf-5.29.6-cp38-abi3-manylinux2014_x86_64.whl", hash = "sha256:e3387f44798ac1106af0233c04fb8abf543772ff241169946f698b3a9a3d3ab9", size = 320478, upload-time = "2026-02-04T22:54:32.909Z" },
+    { url = "https://files.pythonhosted.org/packages/5a/cb/e3065b447186cb70aa65acc70c86baf482d82bf75625bf5a2c4f6919c6a3/protobuf-5.29.6-py3-none-any.whl", hash = "sha256:6b9edb641441b2da9fa8f428760fc136a49cf97a52076010cf22a2ff73438a86", size = 173126, upload-time = "2026-02-04T22:54:39.462Z" },
 ]
 
 [[package]]
@@ -2993,7 +3027,8 @@ name = "sciencebeam-trainer-delft"
 version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "fsspec" },
+    { name = "fsspec", version = "2025.12.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "fsspec", version = "2026.7.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "joblib" },
     { name = "jsonpickle" },
     { name = "numpy" },
@@ -3013,7 +3048,8 @@ delft = [
     { name = "h5py" },
 ]
 gcs = [
-    { name = "gcsfs" },
+    { name = "gcsfs", version = "2025.12.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "gcsfs", version = "2026.7.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14' or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
 ]
 gpu = [
     { name = "torch", version = "2.11.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" } },
@@ -3332,7 +3368,8 @@ resolution-markers = [
 ]
 dependencies = [
     { name = "filelock", marker = "(sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu') or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "fsspec", marker = "(sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu') or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "fsspec", version = "2025.12.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.14' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu') or (python_full_version < '3.14' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu') or (sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "fsspec", version = "2026.7.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.14' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu') or (python_full_version >= '3.14' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu') or (sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "jinja2", marker = "(sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu') or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu') or (python_full_version >= '3.11' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu') or (sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "networkx", version = "3.6.1", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu') or (python_full_version < '3.11' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu') or (sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
@@ -3365,7 +3402,8 @@ dependencies = [
     { name = "cuda-bindings", marker = "(sys_platform == 'linux' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu') or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "cuda-toolkit", extra = ["cublas", "cudart", "cufft", "cufile", "cupti", "curand", "cusolver", "cusparse", "nvjitlink", "nvrtc", "nvtx"], marker = "(sys_platform == 'linux' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu') or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "filelock", marker = "(extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu') or (extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "fsspec", marker = "(extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu') or (extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "fsspec", version = "2025.12.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.14' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu') or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "fsspec", version = "2026.7.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.14' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu') or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "jinja2", marker = "(extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu') or (extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu') or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "networkx", version = "3.6.1", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and extra != 'extra-25-sciencebeam-trainer-delft-cpu' and extra != 'extra-25-sciencebeam-trainer-delft-gpu') or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
@@ -3422,7 +3460,8 @@ resolution-markers = [
 ]
 dependencies = [
     { name = "filelock", marker = "(sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu') or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
-    { name = "fsspec", marker = "(sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu') or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "fsspec", version = "2025.12.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.14' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu') or (python_full_version < '3.14' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu') or (sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "fsspec", version = "2026.7.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.14' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu') or (python_full_version >= '3.14' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu') or (sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "jinja2", marker = "(sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu') or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu') or (python_full_version >= '3.11' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu') or (sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "networkx", version = "3.6.1", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and sys_platform != 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu') or (python_full_version < '3.11' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu') or (sys_platform == 'darwin' and extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
@@ -3476,7 +3515,8 @@ dependencies = [
     { name = "cuda-bindings", marker = "(sys_platform == 'linux' and extra == 'extra-25-sciencebeam-trainer-delft-gpu') or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "cuda-toolkit", extra = ["cublas", "cudart", "cufft", "cufile", "cupti", "curand", "cusolver", "cusparse", "nvjitlink", "nvrtc", "nvtx"], marker = "(sys_platform == 'linux' and extra == 'extra-25-sciencebeam-trainer-delft-gpu') or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "filelock", marker = "extra == 'extra-25-sciencebeam-trainer-delft-gpu'" },
-    { name = "fsspec", marker = "extra == 'extra-25-sciencebeam-trainer-delft-gpu'" },
+    { name = "fsspec", version = "2025.12.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.14' and extra == 'extra-25-sciencebeam-trainer-delft-gpu') or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
+    { name = "fsspec", version = "2026.7.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.14' and extra == 'extra-25-sciencebeam-trainer-delft-gpu') or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "jinja2", marker = "extra == 'extra-25-sciencebeam-trainer-delft-gpu'" },
     { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and extra == 'extra-25-sciencebeam-trainer-delft-gpu') or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
     { name = "networkx", version = "3.6.1", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and extra == 'extra-25-sciencebeam-trainer-delft-gpu') or (extra == 'extra-25-sciencebeam-trainer-delft-cpu' and extra == 'extra-25-sciencebeam-trainer-delft-gpu')" },
