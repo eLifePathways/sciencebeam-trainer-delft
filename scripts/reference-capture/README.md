@@ -48,16 +48,20 @@ difference.
 
 There was a second script, `capture_reference_outputs.py`, recording per-token
 inputs, pre-CRF logits and tags from a TensorFlow model. It read the Keras model
-directly, so it only ran while TensorFlow was installed, and it is not in this
-checkout. It is in the history, alongside the TensorFlow it needs:
+directly, so it only ran while TensorFlow was installed.
+
+Restoring the file alone is not enough - it needs the `tf` extra, which the same
+migration removed. Check out a commit from before that migration, which has
+both, and work there:
 
 ```bash
-git log --all --diff-filter=D -- scripts/reference-capture/capture_reference_outputs.py
-git checkout <commit>~1 -- scripts/reference-capture/capture_reference_outputs.py
+git log --diff-filter=D --oneline \
+    -- scripts/reference-capture/capture_reference_outputs.py
+git switch --detach <that commit>~1
 ```
 
-Regenerating that capture means checking out such a commit anyway, and the
-script is in it, so carrying a copy here that cannot run would serve nothing.
+Regenerating the capture needs such a checkout regardless, so a copy of the
+script here, without the dependency it needs, would serve nothing.
 
 ## Notes
 
