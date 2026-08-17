@@ -23,6 +23,22 @@ target "delft" {
   }
 }
 
+# the GPU variant of the runtime image, for training on hardware that has one.
+# it is a separate target rather than a flag so one CI run publishes both
+target "dev-gpu" {
+  inherits = ["dev"]
+  args = {
+    torch_extra = "gpu"
+  }
+}
+
+target "delft-gpu" {
+  inherits = ["delft"]
+  contexts = {
+    "dev" = "target:dev-gpu"
+  }
+}
+
 target "lint-flake8" {
   context    = "."
   dockerfile = "Dockerfile"
