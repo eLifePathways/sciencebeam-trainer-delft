@@ -1,0 +1,164 @@
+name: Publish image to Artifact Registry
+
+# Copies an image GHCR already published into Artifact Registry, where Vertex AI can
+# pull it from. Nothing is built, so the digest is preserved. Running this, and the GCP
+# setup behind it, are documented in the project notes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Release version (e.g. 1.0.0), or a full 40-character commit sha from main"
+        required: true
+        type: string
+      variants:
+        description: "Which variants to copy"
+        required: true
+        default: both
+        type: choice
+        options:
+          - both
+          - cpu
+          - gpu
+
+env:
+  GHCR_RELEASE_IMAGE: ghcr.io/elifepathways/sciencebeam-trainer-delft
+  GHCR_UNSTABLE_IMAGE: ghcr.io/elifepathways/sciencebeam-trainer-delft_unstable
+  ARTIFACT_REGISTRY_HOST: us-central1-docker.pkg.dev
+  ARTIFACT_REGISTRY_IMAGE: us-central1-docker.pkg.dev/sciencebeam-v2/ml-containers/sciencebeam-trainer-delft
+  GCP_PROJECT_ID: sciencebeam-v2
+  GCP_WORKLOAD_IDENTITY_PROVIDER: projects/476793733249/locations/global/workloadIdentityPools/github/providers/github
+  CRANE_VERSION: "0.21.9"
+  CRANE_SHA256: 5c16d8ddb971cb1d5e6ed8b1e743da8224414eeba2c2762d8f1a61b2f095699e
+
+jobs:
+  publish:
+    name: Copy to Artifact Registry
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Resolve source and destination
+        id: resolve
+        env:
+          SOURCE: ${{ inputs.source }}
+          VARIANTS: ${{ inputs.variants }}
+        run: |
+          set -euo pipefail
+          SOURCE="${SOURCE#v}"
+
+          if [[ "${SOURCE}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            source_image="${GHCR_RELEASE_IMAGE}"
+          elif [[ "${SOURCE}" =~ ^[0-9a-f]{40}$ ]]; then
+            source_image="${GHCR_UNSTABLE_IMAGE}"
+          elif [[ "${SOURCE}" == *-gpu ]]; then
+            echo "::error::'${SOURCE}' looks like a variant tag. Give the version or commit sha on its own and pick the variant with the 'variants' input."
+            exit 1
+          else
+            echo "::error::'${SOURCE}' is neither a release version (X.Y.Z) nor a full 40-character commit sha. Mutable tags such as 'latest' are not accepted."
+            exit 1
+          fi
+
+          case "${VARIANTS}" in
+            both) selected="cpu gpu" ;;
+            cpu)  selected="cpu" ;;
+            gpu)  selected="gpu" ;;
+            *)    echo "::error::unknown variants value '${VARIANTS}'"; exit 1 ;;
+          esac
+
+          echo "source=${SOURCE}" >> "${GITHUB_OUTPUT}"
+          echo "source_image=${source_image}" >> "${GITHUB_OUTPUT}"
+          echo "selected=${selected}" >> "${GITHUB_OUTPUT}"
+          echo "Copying ${selected} from ${source_image}:${SOURCE}"
+
+      - name: Install crane
+        run: |
+          set -euo pipefail
+          curl -fsSL -o crane.tar.gz \
+            "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz"
+          echo "${CRANE_SHA256}  crane.tar.gz" | sha256sum --check --strict
+          tar -xzf crane.tar.gz crane
+          sudo install -m 0755 crane /usr/local/bin/crane
+          rm -f crane crane.tar.gz
+          crane version
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Authenticate crane to Artifact Registry
+        run: |
+          set -euo pipefail
+          gcloud auth print-access-token \
+            | crane auth login "${ARTIFACT_REGISTRY_HOST}" -u oauth2accesstoken --password-stdin
+
+      - name: Copy images and verify digests
+        env:
+          SOURCE: ${{ steps.resolve.outputs.source }}
+          SOURCE_IMAGE: ${{ steps.resolve.outputs.source_image }}
+          SELECTED: ${{ steps.resolve.outputs.selected }}
+        run: |
+          set -euo pipefail
+
+          # sets published_digest. returns 1 only when the tag is genuinely absent; any
+          # other failure fails the job rather than passing for "not published yet".
+          read_published_digest() {
+            local ref="$1"
+            local errors="${RUNNER_TEMP}/crane-digest-errors"
+            if published_digest="$(crane digest "${ref}" 2>"${errors}")"; then
+              return 0
+            fi
+            published_digest=""
+            case "$(cat "${errors}")" in
+              *MANIFEST_UNKNOWN*|*NOT_FOUND*) return 1 ;;
+            esac
+            echo "::error::could not read ${ref}: $(cat "${errors}")"
+            exit 1
+          }
+
+          {
+            echo "| variant | source | digest | result |"
+            echo "| --- | --- | --- | --- |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          for variant in ${SELECTED}; do
+            case "${variant}" in
+              gpu) suffix="-gpu" ;;
+              *)   suffix="" ;;
+            esac
+            source_ref="${SOURCE_IMAGE}:${SOURCE}${suffix}"
+            destination_ref="${ARTIFACT_REGISTRY_IMAGE}:${SOURCE}${suffix}"
+
+            source_digest="$(crane digest "${source_ref}")"
+            echo "source      ${source_ref}"
+            echo "            ${source_digest}"
+
+            if read_published_digest "${destination_ref}"; then
+              if [ "${published_digest}" = "${source_digest}" ]; then
+                echo "            already in Artifact Registry with the same digest"
+                echo "| ${variant} | \`${source_ref}\` | \`${source_digest}\` | already present |" >> "${GITHUB_STEP_SUMMARY}"
+                continue
+              fi
+              echo "::error::${destination_ref} already exists with digest ${published_digest}, which is not ${source_digest}. Published tags are never repointed - publish a different tag instead."
+              exit 1
+            fi
+
+            # belt to the check above, which cannot cover the gap before the copy lands
+            crane copy --no-clobber "${source_ref}" "${destination_ref}"
+
+            published_digest="$(crane digest "${destination_ref}")"
+            if [ "${published_digest}" != "${source_digest}" ]; then
+              echo "::error::${destination_ref} was published with digest ${published_digest}, expected ${source_digest}"
+              exit 1
+            fi
+            echo "destination ${destination_ref}"
+            echo "            ${published_digest} (matches source)"
+            echo "| ${variant} | \`${source_ref}\` | \`${source_digest}\` | published |" >> "${GITHUB_STEP_SUMMARY}"
+          done
