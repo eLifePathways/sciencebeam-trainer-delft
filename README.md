@@ -842,6 +842,35 @@ The following environment variables can be specified:
 
 ## Training in Google's Vertex AI
 
+### Container images
+
+Release images are published to GHCR and are publicly readable:
+
+```text
+ghcr.io/elifepathways/sciencebeam-trainer-delft:1.0.0
+ghcr.io/elifepathways/sciencebeam-trainer-delft:1.0.0-gpu
+```
+
+The `-gpu` variant installs the CUDA build of PyTorch and is the one to use with an
+accelerator; the plain variant is CPU-only and considerably smaller.
+
+Vertex AI cannot pull from GHCR - it accepts Artifact Registry or Docker Hub only - so
+copy the image you want into your own Artifact Registry repository first:
+
+```bash
+crane copy \
+    ghcr.io/elifepathways/sciencebeam-trainer-delft:1.0.0-gpu \
+    us-central1-docker.pkg.dev/your-gcp-project/ml-containers/sciencebeam-trainer-delft:1.0.0-gpu
+```
+
+[crane](https://github.com/google/go-containerregistry/tree/main/cmd/crane) or `skopeo
+copy` both do this without pulling the image locally, and preserve the digest, so what
+Vertex runs is the published image rather than a rebuild of it. Use a region that
+matches where the jobs run, and pin a version rather than `latest` so a job records
+what it actually ran.
+
+### Submitting a job
+
 You can train a model using Google's [Vertex AI](https://cloud.google.com/vertex-ai/) custom jobs. e.g.
 
 ```bash
@@ -849,7 +878,7 @@ gcloud ai custom-jobs create \
     --project="your-gcp-project" \
     --region="us-central1" \
     --display-name="my_citation_model" \
-    --worker-pool-spec="machine-type=n1-highmem-8,accelerator-type=NVIDIA_TESLA_T4,accelerator-count=1,replica-count=1,container-image-uri=us-central1-docker.pkg.dev/your-gcp-project/ml-containers/sciencebeam-trainer-delft:0.0.40" \
+    --worker-pool-spec="machine-type=n1-highmem-8,accelerator-type=NVIDIA_TESLA_T4,accelerator-count=1,replica-count=1,container-image-uri=us-central1-docker.pkg.dev/your-gcp-project/ml-containers/sciencebeam-trainer-delft:1.0.0" \
     --args="python,-m,sciencebeam_trainer_delft.sequence_labelling.grobid_trainer,citation,train_eval,--job-dir=gs://your-job-bucket/path,--auto-resume,--batch-size=900,--no-embedding,--max-sequence-length=100,--input,https://github.com/eLifePathways/sciencebeam-datasets/releases/download/grobid-0.9.0/delft-grobid-0.9.0-citation.train.gz,--early-stopping-patience=10,--architecture=CustomBidLSTM_CRF,--use-features,--feature-indices=9-27,--word-lstm-units=100,--max-epoch=300,--checkpoint=gs://your-model-bucket/citation/checkpoints/my_citation_model,--output=gs://your-model-bucket/citation/models/my_citation_model"
 ```
 
@@ -860,7 +889,7 @@ Or using the project's wrapper script, passing gcloud options before `--` and tr
     --project "your-gcp-project" \
     --region "us-central1" \
     --display-name "my_citation_model" \
-    --container-image-uri "us-central1-docker.pkg.dev/your-gcp-project/ml-containers/sciencebeam-trainer-delft:0.0.40" \
+    --container-image-uri "us-central1-docker.pkg.dev/your-gcp-project/ml-containers/sciencebeam-trainer-delft:1.0.0" \
     -- \
     citation train_eval \
     --job-dir "gs://your-job-bucket/path" \
