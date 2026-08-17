@@ -25,7 +25,11 @@ from sciencebeam_trainer_delft.sequence_labelling.typing import (
     T_Batch_Token_Array
 )
 from sciencebeam_trainer_delft.utils.typing import T
-from sciencebeam_trainer_delft.utils.device import get_default_device
+from sciencebeam_trainer_delft.utils.device import (
+    get_default_device,
+    log_device_info_once,
+    validate_device
+)
 from sciencebeam_trainer_delft.utils.download_manager import DownloadManager
 from sciencebeam_trainer_delft.utils.numpy import concatenate_or_none
 from sciencebeam_trainer_delft.utils.misc import str_to_bool
@@ -130,11 +134,13 @@ def get_default_device_or_env() -> str:
     """Returns the device to run on, preferring a GPU when there is one.
 
     A CPU-only install is the default install, but a run on a machine that has
-    a GPU should use it without being asked to.
+    a GPU should use it without being asked to. An empty value counts as unset
+    and auto-detects, which is how a value set by a base image is undone.
     """
-    return get_typed_env(
-        EnvironmentVariables.DEVICE, str, default_value=get_default_device()
-    ) or get_default_device()
+    device = get_typed_env(EnvironmentVariables.DEVICE, str)
+    if not device:
+        return get_default_device()
+    return validate_device(device, source=EnvironmentVariables.DEVICE)
 
 
 def get_default_stateful() -> Optional[bool]:
@@ -302,7 +308,8 @@ class Sequence:
         self.eval_batch_size = eval_batch_size
         self.model_path: Optional[str] = None
         self.log_dir = log_dir
-        self.device = device or get_default_device_or_env()
+        self.device = validate_device(device) if device else get_default_device_or_env()
+        log_device_info_once(self.device)
         if stateful is None:
             # use a stateful model, if supported
             stateful = get_default_stateful()

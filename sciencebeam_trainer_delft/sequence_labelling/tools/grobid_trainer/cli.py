@@ -11,7 +11,7 @@ import sciencebeam_trainer_delft.utils.no_warn_if_disabled  # noqa, pylint: disa
 
 from sciencebeam_trainer_delft.utils.download_manager import DownloadManager
 from sciencebeam_trainer_delft.utils.cloud_support import patch_cloud_support
-from sciencebeam_trainer_delft.utils.device import get_device_info, log_device_info
+from sciencebeam_trainer_delft.utils.device import get_device_info, log_device_info_once
 from sciencebeam_trainer_delft.utils.io import (
     copy_file,
     auto_uploading_output_file
@@ -42,6 +42,9 @@ from sciencebeam_trainer_delft.utils.cli import (
 from sciencebeam_trainer_delft.sequence_labelling.transfer_learning import (
     get_transfer_learning_config_for_parsed_args
 )
+# the same resolution `Sequence` does, so that both log the same device and
+# only the first call logs at all
+from sciencebeam_trainer_delft.sequence_labelling.wrapper import get_default_device_or_env
 from sciencebeam_trainer_delft.sequence_labelling.tools.grobid_trainer.cli_args import (
     add_common_arguments,
     add_train_arguments,
@@ -229,7 +232,7 @@ class TrainSubCommand(GrobidTrainerSubCommand):
         if not args.model:
             raise ValueError("model required")
         device_info = get_device_info()
-        log_device_info(device_info)
+        log_device_info_once(args.device or get_default_device_or_env())
         check_required_gpu(
             require_gpu=args.require_gpu,
             device_info=device_info,
@@ -294,7 +297,7 @@ class TrainEvalSubCommand(GrobidTrainerSubCommand):
         if args.fold_count < 1:
             raise ValueError("fold-count should be equal or more than 1")
         device_info = get_device_info()
-        log_device_info(device_info)
+        log_device_info_once(args.device or get_default_device_or_env())
         check_required_gpu(
             require_gpu=args.require_gpu,
             device_info=device_info,
