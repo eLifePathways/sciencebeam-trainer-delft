@@ -4,7 +4,8 @@ Used to pick where a run happens, to fail fast on `--require-gpu`, and to name
 the device in a training notification.
 """
 import logging
-from typing import List
+from functools import lru_cache
+from typing import List, Optional
 
 import torch
 
@@ -86,6 +87,46 @@ def log_device_info(device_info: dict):
             ' a different CUDA wheel is required',
             ', '.join(unsupported), ', '.join(device_info['torch_arch_list'])
         )
+
+
+@lru_cache(maxsize=1)
+def log_device_info_once(device: Optional[str] = None) -> None:
+    """Logs the selected device and the device info, once per process.
+
+    Both the training CLI and `Sequence` call this: a serving consumer has no
+    other way to learn which device it got, and a tagging service constructs a
+    `Sequence` per model, so the lines must not repeat. Call it with the
+    resolved device rather than the requested one, so that both call sites pass
+    the same value and only the first one logs.
+    """
+    if device:
+        LOGGER.info('using device: %s', device)
+    log_device_info(get_device_info())
+    if device and torch.device(device).type == CUDA_DEVICE and not torch.cuda.is_available():
+        LOGGER.warning(
+            'device %r was requested, but torch reports no CUDA device:'
+            ' moving the model to it will fail',
+            device
+        )
+
+
+def validate_device(device: str, source: Optional[str] = None) -> str:
+    """Returns the device, or fails naming the value torch cannot use.
+
+    Without this an unusable value reaches `.to(device)` much later, where the
+    message is about a tensor rather than about the value that was asked for.
+    A device torch can parse but has no hardware for is not rejected here:
+    `log_device_info_once` warns about it instead, since an image can set the
+    value ahead of the hardware it will run on.
+    """
+    try:
+        torch.device(device)
+    except (RuntimeError, TypeError, ValueError) as exc:
+        raise ValueError('invalid device: %r%s' % (
+            device,
+            ' (from %s)' % source if source else ''
+        )) from exc
+    return device
 
 
 def get_default_device() -> str:

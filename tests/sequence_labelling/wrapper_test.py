@@ -11,6 +11,7 @@ from delft.sequenceLabelling.preprocess import (
 )
 
 from sciencebeam_trainer_delft.resources.default_config import DEFAULT_RESOURCE_REGISTRY_FILE
+from sciencebeam_trainer_delft.utils.device import log_device_info_once
 from sciencebeam_trainer_delft.sequence_labelling.preprocess import (
     Preprocessor as ScienceBeamPreprocessor,
     FeaturesPreprocessor as ScienceBeamFeaturesPreprocessor
@@ -34,6 +35,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 MODEL_NAME_1 = 'DummyModel1'
+
+INVALID_DEVICE = 'gpu'
 
 TOKEN_1 = 'token1'
 TOKEN_2 = 'token2'
@@ -77,6 +80,23 @@ class TestSequence:
         model = Sequence(MODEL_NAME_1)
         assert model.embedding_registry_path == DEFAULT_RESOURCE_REGISTRY_FILE
         assert model.embedding_manager.path == DEFAULT_RESOURCE_REGISTRY_FILE
+
+    def test_should_log_the_device_it_will_use(self, caplog):
+        log_device_info_once.cache_clear()
+        with caplog.at_level('INFO'):
+            model = Sequence(MODEL_NAME_1)
+        assert f'using device: {model.device}' in caplog.text
+
+    def test_should_log_the_device_once_per_process(self, caplog):
+        log_device_info_once.cache_clear()
+        with caplog.at_level('INFO'):
+            Sequence(MODEL_NAME_1)
+            Sequence(MODEL_NAME_1)
+        assert caplog.text.count('using device') == 1
+
+    def test_should_reject_an_invalid_device(self):
+        with pytest.raises(ValueError, match=repr(INVALID_DEVICE)):
+            Sequence(MODEL_NAME_1, device=INVALID_DEVICE)
 
 
 def get_layer_weights(model, layer_name: str):

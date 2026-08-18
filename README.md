@@ -839,6 +839,11 @@ The following environment variables can be specified:
 | `SCIENCEBEAM_DELFT_INPUT_WINDOW_STRIDE` | *None* | The window stride to use (if any). If the model is stateless, this could be set to the maximum sequence length. Otherwise this could be a set to a value below the maximum sequence length. The difference will be the overlapping window. If no window stride was specified, the sequence will be truncated at the maximum sequence length.
 | `SCIENCEBEAM_DELFT_BATCH_SIZE` | `10` | The batch size to use
 | `SCIENCEBEAM_DELFT_STATEFUL` | *None* (*False*) | Whether to enable stateful mode. This may only work with a batch size of `1`. Note: the stateful mode is currently very slow.
+| `SCIENCEBEAM_DELFT_DEVICE` | *None* (auto-detect) | The torch device to run on, e.g. `cpu`, `cuda` or `cuda:1`. Auto-detect uses a GPU when torch reports one. A value torch cannot use is rejected on startup, naming the value. An **empty value counts as unset** and auto-detects again, which is how a value set by a base image is undone.
+
+The selected device is logged once per process at `INFO`, together with the
+torch version and the GPUs torch can see, so the device a serving process ended
+up on can be read from its logs.
 
 ## Training in Google's Vertex AI
 
