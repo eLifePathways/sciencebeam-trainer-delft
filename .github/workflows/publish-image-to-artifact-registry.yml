@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       source:
-        description: "Release version (e.g. 1.0.0), or a full 40-character commit sha from main"
+        description: "Release version 1.0.1 or later, or a full 40-character commit sha from main"
         required: true
         type: string
       variants:
@@ -53,7 +53,7 @@ jobs:
             source_image="${GHCR_RELEASE_IMAGE}"
           elif [[ "${SOURCE}" =~ ^[0-9a-f]{40}$ ]]; then
             source_image="${GHCR_UNSTABLE_IMAGE}"
-          elif [[ "${SOURCE}" == *-gpu ]]; then
+          elif [[ "${SOURCE}" == *-cpu || "${SOURCE}" == *-gpu ]]; then
             echo "::error::'${SOURCE}' looks like a variant tag. Give the version or commit sha on its own and pick the variant with the 'variants' input."
             exit 1
           else
@@ -107,15 +107,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          # sets published_digest. returns 1 only when the tag is genuinely absent; any
-          # other failure fails the job rather than passing for "not published yet".
-          read_published_digest() {
+          # sets digest. returns 1 only when the tag is genuinely absent; any other
+          # failure fails the job rather than passing for "not published yet".
+          read_digest() {
             local ref="$1"
             local errors="${RUNNER_TEMP}/crane-digest-errors"
-            if published_digest="$(crane digest "${ref}" 2>"${errors}")"; then
+            if digest="$(crane digest "${ref}" 2>"${errors}")"; then
               return 0
             fi
-            published_digest=""
+            digest=""
             case "$(cat "${errors}")" in
               *MANIFEST_UNKNOWN*|*NOT_FOUND*) return 1 ;;
             esac
@@ -130,23 +130,28 @@ jobs:
 
           for variant in ${SELECTED}; do
             case "${variant}" in
+              cpu) suffix="-cpu" ;;
               gpu) suffix="-gpu" ;;
-              *)   suffix="" ;;
+              *)   echo "::error::unknown variant '${variant}'"; exit 1 ;;
             esac
             source_ref="${SOURCE_IMAGE}:${SOURCE}${suffix}"
             destination_ref="${ARTIFACT_REGISTRY_IMAGE}:${SOURCE}${suffix}"
 
-            source_digest="$(crane digest "${source_ref}")"
+            if ! read_digest "${source_ref}"; then
+              echo "::error::${source_ref} does not exist. Both variants carry a suffixed tag from 1.0.1 onwards; earlier releases published the CPU variant unsuffixed and cannot be copied."
+              exit 1
+            fi
+            source_digest="${digest}"
             echo "source      ${source_ref}"
             echo "            ${source_digest}"
 
-            if read_published_digest "${destination_ref}"; then
-              if [ "${published_digest}" = "${source_digest}" ]; then
+            if read_digest "${destination_ref}"; then
+              if [ "${digest}" = "${source_digest}" ]; then
                 echo "            already in Artifact Registry with the same digest"
                 echo "| ${variant} | \`${source_ref}\` | \`${source_digest}\` | already present |" >> "${GITHUB_STEP_SUMMARY}"
                 continue
               fi
-              echo "::error::${destination_ref} already exists with digest ${published_digest}, which is not ${source_digest}. Published tags are never repointed - publish a different tag instead."
+              echo "::error::${destination_ref} already exists with digest ${digest}, which is not ${source_digest}. Published tags are never repointed - publish a different tag instead."
               exit 1
             fi
 
