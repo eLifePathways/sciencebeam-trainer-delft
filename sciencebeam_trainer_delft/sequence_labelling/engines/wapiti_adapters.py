@@ -2,7 +2,7 @@ import logging
 import tempfile
 import os
 from pathlib import Path
-from typing import Iterable, IO, List, Optional, Tuple
+from typing import Iterable, IO, List, Optional, Set, Tuple
 
 import numpy as np
 
@@ -20,6 +20,9 @@ from sciencebeam_trainer_delft.utils.download_manager import DownloadManager
 from sciencebeam_trainer_delft.utils.io import copy_file
 
 from sciencebeam_trainer_delft.sequence_labelling.config import TrainingConfig
+from sciencebeam_trainer_delft.sequence_labelling.engines.wapiti_template import (
+    get_wapiti_template_feature_indices
+)
 from sciencebeam_trainer_delft.sequence_labelling.engines.wapiti import (
     WapitiModel,
     WapitiWrapper,
@@ -125,6 +128,11 @@ class WapitiModelAdapter:
         self.model_file_path = model_file_path
         self.model_path = model_path
         self._wapiti_model: Optional[WapitiModel] = None
+
+    def get_read_feature_indices(self) -> Optional[Set[int]]:
+        # a trained model carries its template inside the model file, where this cannot read it,
+        # so every feature is treated as read
+        return None
 
     @property
     def wapiti_model(self) -> WapitiModel:
@@ -276,7 +284,11 @@ def iter_doc_formatted_training_data(
     features_doc: np.ndarray
 ) -> Iterable[str]:
     for x_token, y_token, f_token in zip(x_doc, y_doc, features_doc):
-        yield format_feature_line([x_token] + f_token + [translate_tags_IOB_to_grobid(y_token)])
+        # list(), because adding a list to a numpy row concatenates the strings elementwise
+        # rather than the sequences, which silently writes one mangled column per feature
+        yield format_feature_line(
+            [x_token] + list(f_token) + [translate_tags_IOB_to_grobid(y_token)]
+        )
     # blank lines to mark the end of the document
     yield ''
     yield ''
@@ -321,10 +333,21 @@ class WapitiModelTrainAdapter:
         self.wapiti_binary_path = wapiti_binary_path
         self.wapiti_train_args = wapiti_train_args
         self._model_adapter: Optional[WapitiModelAdapter] = None
+        self._local_template_path: Optional[str] = None
         # additional properties to keep "compatibility" with wrapper.Sequence
         self.log_dir = None
         self.model_path = None
         self.training_config = TrainingConfig(initial_epoch=0)
+
+    def get_local_template_path(self) -> str:
+        if self._local_template_path is None:
+            self._local_template_path = self.download_manager.download_if_url(self.template_path)
+            LOGGER.info('local_template_path: %s', self._local_template_path)
+        return self._local_template_path
+
+    def get_read_feature_indices(self) -> Optional[Set[int]]:
+        # resolved before the training data is checked against it, rather than lazily in `train`
+        return get_wapiti_template_feature_indices(self.get_local_template_path())
 
     def train(
         self,
@@ -335,8 +358,7 @@ class WapitiModelTrainAdapter:
         features_train: T_Batch_Features_Array,
         features_valid: Optional[T_Batch_Features_Array]
     ):
-        local_template_path = self.download_manager.download_if_url(self.template_path)
-        LOGGER.info('local_template_path: %s', local_template_path)
+        local_template_path = self.get_local_template_path()
         if not self.temp_model_path:
             self.temp_model_path = '/tmp/model.wapiti'
         with tempfile.TemporaryDirectory(suffix='wapiti') as temp_dir:

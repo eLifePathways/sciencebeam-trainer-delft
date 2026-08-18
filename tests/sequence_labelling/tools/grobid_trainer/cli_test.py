@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from sciencebeam_trainer_delft.sequence_labelling.feature_lengths import FeatureLengthModes
 from sciencebeam_trainer_delft.sequence_labelling.wrapper import (
     EnvironmentVariables
 )
@@ -65,6 +66,58 @@ class TestGrobidTrainer:
                 '--input', INPUT_PATH_2
             ])
             assert opt.input == [INPUT_PATH_1, INPUT_PATH_2]
+
+        def test_should_refuse_inconsistent_feature_lengths_by_default(self):
+            opt = parse_args(['header', 'train', '--input', INPUT_PATH_1])
+            assert opt.on_inconsistent_feature_lengths == FeatureLengthModes.FAIL
+
+        @pytest.mark.parametrize(
+            'mode', [FeatureLengthModes.ACCEPT, FeatureLengthModes.DROP]
+        )
+        def test_should_allow_selecting_a_feature_length_mode(self, mode: str):
+            opt = parse_args([
+                'header', 'train',
+                '--input', INPUT_PATH_1,
+                '--on-inconsistent-feature-lengths=%s' % mode
+            ])
+            assert opt.on_inconsistent_feature_lengths == mode
+
+        def test_should_reject_an_unknown_feature_length_mode(self):
+            with pytest.raises(SystemExit):
+                parse_args([
+                    'header', 'train',
+                    '--input', INPUT_PATH_1,
+                    '--on-inconsistent-feature-lengths=ignore'
+                ])
+
+        @pytest.mark.parametrize(
+            'task',
+            [
+                'train', 'train_eval', 'eval', 'tag',
+                'wapiti_train', 'wapiti_train_eval', 'wapiti_eval', 'wapiti_tag'
+            ]
+        )
+        def test_should_offer_the_mode_to_every_task_that_can_refuse(self, task: str):
+            argv = [
+                'header', task, '--input', INPUT_PATH_1,
+                '--on-inconsistent-feature-lengths=drop'
+            ]
+            if task in {'eval', 'tag', 'wapiti_eval', 'wapiti_tag'}:
+                argv.append('--model-path=/path/to/model')
+            if task == 'wapiti_train_eval':
+                argv.append('--wapiti-template=/path/to/template')
+            if task == 'wapiti_train':
+                argv.append('--wapiti-template=/path/to/template')
+            assert parse_args(argv).on_inconsistent_feature_lengths == FeatureLengthModes.DROP
+
+        def test_should_not_offer_the_mode_to_input_info(self):
+            # the diagnostic reports rather than refuses, so it has nothing to choose
+            with pytest.raises(SystemExit):
+                parse_args([
+                    'header', 'input_info',
+                    '--input', INPUT_PATH_1,
+                    '--on-inconsistent-feature-lengths=drop'
+                ])
 
         def test_should_use_stateful_env_variable_true_by_default(self, env_mock):
             env_mock[EnvironmentVariables.STATEFUL] = 'true'

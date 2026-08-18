@@ -1,6 +1,8 @@
 import logging
 from io import StringIO
 
+import numpy as np
+
 from sciencebeam_trainer_delft.sequence_labelling.engines.wapiti_adapters import (
     translate_tags_IOB_to_grobid,
     write_wapiti_train_data,
@@ -33,6 +35,23 @@ class TestWriteWapitiTrainData:
             features=[[['f1.1', 'f1.2'], ['f2.1', 'f2.2']]]
         )
         LOGGER.debug('buffer:\n%s', buffer.getvalue())
+        assert buffer.getvalue().splitlines() == [
+            'token1\tf1.1\tf1.2\tI-<label1>',
+            'token2\tf2.1\tf2.2\t<label1>',
+            '',
+            ''
+        ]
+
+    def test_should_write_features_held_in_a_multi_dimensional_array(self):
+        # the reader returns a multi-dimensional array where the documents have equal row
+        # counts, and adding a list to a numpy row concatenates the strings elementwise
+        buffer = StringIO()
+        write_wapiti_train_data(
+            buffer,
+            x=np.array([['token1', 'token2']], dtype='object'),
+            y=np.array([['B-<label1>', 'I-<label1>']], dtype='object'),
+            features=np.array([[['f1.1', 'f1.2'], ['f2.1', 'f2.2']]], dtype='object')
+        )
         assert buffer.getvalue().splitlines() == [
             'token1\tf1.1\tf1.2\tI-<label1>',
             'token2\tf2.1\tf2.2\t<label1>',

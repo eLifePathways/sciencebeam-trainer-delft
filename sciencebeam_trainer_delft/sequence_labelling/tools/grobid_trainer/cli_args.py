@@ -22,6 +22,12 @@ from sciencebeam_trainer_delft.sequence_labelling.config import (
 )
 from sciencebeam_trainer_delft.sequence_labelling.models import get_model_names
 
+from sciencebeam_trainer_delft.sequence_labelling.feature_lengths import (
+    DEFAULT_FEATURE_LENGTH_MODE,
+    FEATURE_LENGTH_MODES,
+    FEATURE_LENGTH_MODE_ARG_NAME
+)
+
 from sciencebeam_trainer_delft.sequence_labelling.engines.wapiti import (
     DEFAULT_STOP_EPSILON_VALUE,
     DEFAULT_STOP_WINDOW_SIZE
@@ -59,9 +65,27 @@ DEFAULT_RANDOM_SEED = 42
 DEFAULT_TAG_OUTPUT_FORMAT = TagOutputFormats.XML
 
 
+def add_feature_length_mode_argument(parser: ArgParseActionsContainer):
+    parser.add_argument(
+        FEATURE_LENGTH_MODE_ARG_NAME,
+        choices=FEATURE_LENGTH_MODES,
+        default=DEFAULT_FEATURE_LENGTH_MODE,
+        help=(
+            "What to do when the loaded documents do not all have the same number of features."
+            " 'fail' refuses to continue. 'accept' continues where every feature this run reads"
+            " is present in every document, which assumes the surplus features are trailing ones,"
+            " since features are read by position. 'drop' additionally drops the documents that"
+            " cannot supply a feature this run reads."
+            " A document that cannot supply one is refused under 'fail' and 'accept' regardless,"
+            " because it has no sound interpretation"
+        )
+    )
+
+
 def add_common_arguments(
     parser: argparse.ArgumentParser,
-    max_sequence_length_default: Optional[int] = None
+    max_sequence_length_default: Optional[int] = None,
+    include_feature_length_mode: bool = True
 ):
     input_group = parser.add_argument_group('input')
     input_group.add_argument(
@@ -75,6 +99,9 @@ def add_common_arguments(
         action="store_true",
         help="Shuffle the input before splitting"
     )
+    if include_feature_length_mode:
+        # `input_info` reports rather than refuses, so it is not offered a mode to choose
+        add_feature_length_mode_argument(input_group)
     input_group.add_argument(
         "--limit",
         type=int,

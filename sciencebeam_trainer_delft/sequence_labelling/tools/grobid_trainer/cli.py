@@ -67,6 +67,9 @@ from sciencebeam_trainer_delft.sequence_labelling.tools.grobid_trainer.cli_args 
     process_args
 )
 
+from sciencebeam_trainer_delft.sequence_labelling.tools.grobid_trainer.data_loading import (
+    print_input_info
+)
 from sciencebeam_trainer_delft.sequence_labelling.tools.grobid_trainer.utils import (
     set_random_seeds,
     train,
@@ -76,8 +79,7 @@ from sciencebeam_trainer_delft.sequence_labelling.tools.grobid_trainer.utils imp
     eval_model,
     wapiti_eval_model,
     tag_input,
-    wapiti_tag_input,
-    print_input_info
+    wapiti_tag_input
 )
 
 
@@ -154,6 +156,7 @@ class GrobidTrainerSubCommand(SubCommand):
             limit=args.limit,
             shuffle_input=args.shuffle_input,
             random_seed=args.random_seed,
+            feature_length_mode=args.on_inconsistent_feature_lengths,
             batch_size=args.batch_size,
             max_sequence_length=args.max_sequence_length,
             multiprocessing=args.multiprocessing,
@@ -268,6 +271,7 @@ class WapitiTrainSubCommand(GrobidTrainerSubCommand):
             template_path=args.wapiti_template,
             input_paths=args.input,
             limit=args.limit,
+            feature_length_mode=args.on_inconsistent_feature_lengths,
             output_path=args.output,
             max_epoch=args.max_epoch,
             download_manager=self.download_manager,
@@ -339,6 +343,7 @@ class WapitiTrainEvalSubCommand(GrobidTrainerSubCommand):
             template_path=args.wapiti_template,
             input_paths=args.input,
             limit=args.limit,
+            feature_length_mode=args.on_inconsistent_feature_lengths,
             eval_input_paths=args.eval_input,
             eval_limit=args.eval_limit,
             output_path=args.output,
@@ -394,6 +399,7 @@ class WapitiEvalSubCommand(GrobidTrainerSubCommand):
             model_path=args.model_path,
             input_paths=args.input,
             limit=args.limit,
+            feature_length_mode=args.on_inconsistent_feature_lengths,
             eval_output_args=get_eval_output_args(args),
             download_manager=self.download_manager,
             wapiti_binary_path=install_wapiti_and_get_path_or_none(
@@ -444,6 +450,7 @@ class WapitiTagSubCommand(GrobidTrainerSubCommand):
             tag_output_path=args.tag_output_path,
             input_paths=args.input,
             limit=args.limit,
+            feature_length_mode=args.on_inconsistent_feature_lengths,
             download_manager=self.download_manager,
             wapiti_binary_path=install_wapiti_and_get_path_or_none(
                 args.wapiti_install_source,
@@ -454,7 +461,7 @@ class WapitiTagSubCommand(GrobidTrainerSubCommand):
 
 class InputInfoSubCommand(GrobidTrainerSubCommand):
     def add_arguments(self, parser: argparse.ArgumentParser):
-        add_common_arguments(parser)
+        add_common_arguments(parser, include_feature_length_mode=False)
 
     def do_run(self, args: argparse.Namespace):
         print_input_info(

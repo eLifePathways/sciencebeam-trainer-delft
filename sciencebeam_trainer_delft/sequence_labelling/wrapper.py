@@ -9,7 +9,7 @@ import logging
 import os
 import time
 from functools import partial
-from typing import Any, Callable, Iterable, List, Optional, Tuple, Union, cast
+from typing import Any, Callable, Iterable, List, Optional, Set, Tuple, Union, cast
 from typing import Sequence as TypingSequence
 
 import numpy as np
@@ -41,6 +41,9 @@ from sciencebeam_trainer_delft.sequence_labelling.tools.install_models import (
 from sciencebeam_trainer_delft.embedding import Embeddings, EmbeddingManager
 
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig, TrainingConfig
+from sciencebeam_trainer_delft.sequence_labelling.feature_lengths import (
+    get_model_config_read_feature_indices
+)
 from sciencebeam_trainer_delft.sequence_labelling.data_generator import (
     DataGenerator,
     iter_batch_text_list,
@@ -791,6 +794,9 @@ class Sequence:
 
     def get_model_output_path(self, dir_path: Optional[str] = None) -> str:
         return get_model_directory(model_name=self.model_config.model_name, dir_path=dir_path)
+
+    def get_read_feature_indices(self) -> Optional[Set[int]]:
+        return get_model_config_read_feature_indices(self.model_config)
 
     def _get_model_directory(self, dir_path: Optional[str] = None) -> str:
         return self.get_model_output_path(dir_path=dir_path)
