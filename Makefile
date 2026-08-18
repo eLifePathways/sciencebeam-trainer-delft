@@ -8,12 +8,15 @@ PIP = $(UV) pip
 
 PYTHON = PATH=$(VENV)/bin:$$PATH $(VENV)/bin/python
 
-# the cpu and gpu extras conflict, so --all-extras is not usable and the
-# extras are named; TORCH_EXTRA selects which torch wheel to install.
-# `?=` so that `TORCH_EXTRA=gpu make build` reaches docker compose: a plain
+# the cpu and gpu groups conflict, so --all-groups is not usable and the group
+# is named; TORCH_GROUP selects which torch wheel to install. Every group is
+# named explicitly, so a change to what uv installs by default cannot change
+# what this installs.
+# `?=` so that `TORCH_GROUP=gpu make build` reaches docker compose: a plain
 # assignment would override the environment and re-export its own value
-TORCH_EXTRA ?= cpu
-UV_SYNC_EXTRAS = --extra delft --extra gcs --extra $(TORCH_EXTRA)
+TORCH_GROUP ?= cpu
+UV_SYNC_ARGS = --extra delft --extra gcs \
+	--no-default-groups --group dev --group $(TORCH_GROUP)
 
 BATCH_SIZE = 10
 MAX_EPOCH = 1
@@ -75,11 +78,11 @@ venv-create:
 
 
 dev-install:
-	$(UV) sync --active --frozen $(UV_SYNC_EXTRAS) --all-groups
+	$(UV) sync --active --frozen $(UV_SYNC_ARGS)
 
 
 dev-install-gpu:
-	$(MAKE) dev-install TORCH_EXTRA=gpu
+	$(MAKE) dev-install TORCH_GROUP=gpu
 	$(PYTHON) -c "import torch; print('torch', torch.__version__, 'cuda', torch.cuda.is_available())"
 
 

@@ -5,7 +5,8 @@ description = "ScienceBeam Trainer DeLFT"
 readme = "README.md"
 requires-python = ">=3.10"
 # every package imported directly is declared here, rather than relied on to
-# arrive through delft or scikit-learn
+# arrive through delft or scikit-learn -- torch included, in the cpu and gpu
+# dependency groups below
 dependencies = [
     "jsonpickle>=1.4.1",
     # remote file access; a scheme needs its own implementation package, see
@@ -27,19 +28,6 @@ delft = [
     "delft>=1.0.1",
     "h5py>=3.16.0",
 ]
-# torch is declared directly so [tool.uv.sources] applies: uv sources are not
-# honoured for a transitive requirement, so relying on delft's own pin resolves
-# the CUDA wheel from PyPI instead. The two extras select which wheel, and
-# conflict, so exactly one has to be asked for -- `--all-extras` is therefore
-# not usable and every install names its extras.
-# Deliberately unversioned: delft pins the version exactly, so a version here
-# is a second source of truth that can only ever disagree with it.
-cpu = [
-    "torch",
-]
-gpu = [
-    "torch",
-]
 
 [dependency-groups]
 dev = [
@@ -51,15 +39,35 @@ dev = [
     "types-pyyaml>=6.0.12.20250915",
     "types-requests>=2.27.5",
 ]
+# the torch wheel is selected by a group rather than an extra, because the
+# selection cannot travel: what tells cpu and gpu apart is [tool.uv.sources]
+# and the index blocks below, which are uv-local and are not carried in wheel
+# metadata. As extras the two were byte-identical once published, promising a
+# choice they could not make; groups are not published at all, so the choice is
+# offered only where it works. A consumer needs the index configuration and its
+# own direct torch declaration -- see the README.
+# torch is declared directly so [tool.uv.sources] applies: uv sources are not
+# honoured for a transitive requirement, so relying on delft's own pin resolves
+# the CUDA wheel from PyPI instead. The two groups conflict, so exactly one has
+# to be asked for -- `--all-groups` is therefore not usable and every install
+# names its group.
+# Deliberately unversioned: delft pins the version exactly, so a version here
+# is a second source of truth that can only ever disagree with it.
+cpu = [
+    "torch",
+]
+gpu = [
+    "torch",
+]
 [tool.uv]
 conflicts = [
-    [{ extra = "cpu" }, { extra = "gpu" }],
+    [{ group = "cpu" }, { group = "gpu" }],
 ]
 
 [tool.uv.sources]
 torch = [
-    { index = "pytorch-cpu", extra = "cpu" },
-    { index = "pytorch-cu130", extra = "gpu" },
+    { index = "pytorch-cpu", group = "cpu" },
+    { index = "pytorch-cu130", group = "gpu" },
 ]
 
 [[tool.uv.index]]

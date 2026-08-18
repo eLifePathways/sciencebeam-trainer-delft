@@ -34,14 +34,15 @@ ENV VIRTUAL_ENV=${VENV} PYTHONUSERBASE=${VENV} PATH=${VENV}/bin:$PATH
 RUN uv venv "${VENV}"
 
 
-# cpu or gpu: the two torch extras conflict, so exactly one is named. The
-# image pushed for GPU training is built with --build-arg torch_extra=gpu
-ARG torch_extra=cpu
+# cpu or gpu: the two torch groups conflict, so exactly one is named. The
+# image pushed for GPU training is built with --build-arg torch_group=gpu
+ARG torch_group=cpu
 
 COPY pyproject.toml uv.lock ./
+# every group is named, so what uv installs by default cannot change the image
 RUN uv sync --active --frozen \
-    --extra delft --extra gcs --extra "${torch_extra}" \
-    --all-groups
+    --extra delft --extra gcs \
+    --no-default-groups --group dev --group "${torch_group}"
 
 COPY sciencebeam_trainer_delft ./sciencebeam_trainer_delft
 COPY README.md ./
