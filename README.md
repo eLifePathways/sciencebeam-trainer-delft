@@ -36,31 +36,22 @@ PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install --force 3.9.17
 
 ## Installing
 
-Two extras select which PyTorch wheel is installed, and they conflict, so
-exactly one is named:
+Two dependency groups select which PyTorch wheel is installed, and they
+conflict, so exactly one is named:
 
 ```bash
-uv sync --extra delft --extra gcs --extra cpu --all-groups   # or --extra gpu
+uv sync --extra delft --extra gcs \
+  --no-default-groups --group dev --group cpu   # or --group gpu
 ```
 
-`--all-extras` therefore does not work.
+`--all-groups` therefore does not work.
 
-**Depending on this package from another project.** The index that provides the
-CPU wheel is configured here, and uv does not carry a source across to a project
-that depends on this one from a registry - so a downstream project resolves
-`torch` from PyPI, which on Linux is the CUDA build and pulls the whole nvidia
-stack. To get the CPU wheel, repeat the index configuration in that project's
-own `pyproject.toml`:
-
-```toml
-[tool.uv.sources]
-torch = [{ index = "pytorch-cpu" }]
-
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
-```
+The groups apply to this project only: they are not published, and a uv source
+does not cross a registry dependency. A project depending on this one receives
+`torch` through delft and chooses a wheel variant itself, needing its own index
+configuration and its own direct `torch` declaration - see
+[uv's PyTorch guide](https://docs.astral.sh/uv/guides/integration/pytorch/), or
+`--extra-index-url` with pip.
 
 ## Models Saved Before the PyTorch Migration
 

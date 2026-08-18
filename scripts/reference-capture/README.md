@@ -8,7 +8,7 @@ not tracked.
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-uv sync --extra delft --extra gcs --extra cpu --all-groups --frozen
+uv sync --extra delft --extra gcs --no-default-groups --group dev --group cpu --frozen
 ```
 
 ## End-to-end cases

@@ -53,6 +53,10 @@ def get_declared_distribution_names() -> Set[str]:
     requirements = list(project['dependencies'])
     for extra_requirements in project.get('optional-dependencies', {}).values():
         requirements.extend(extra_requirements)
+    # torch is declared in a dependency group rather than an extra, since the
+    # wheel variant cannot be selected through published metadata
+    for group_requirements in pyproject.get('dependency-groups', {}).values():
+        requirements.extend(group_requirements)
     return {
         requirement.split(';')[0].split('>')[0].split('=')[0].split('[')[0].strip()
         for requirement in requirements

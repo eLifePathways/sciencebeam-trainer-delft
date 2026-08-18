@@ -1,6 +1,6 @@
 # cpu or gpu: selects which torch wheel the venv installs, see pyproject.
 # the lint, test and dist targets have no use for the CUDA runtime
-variable "TORCH_EXTRA" {
+variable "TORCH_GROUP" {
   default = "cpu"
 }
 
@@ -10,7 +10,7 @@ target "dev" {
   target = "dev"
   args = {
     wapiti_source_download_url = "https://github.com/kermitt2/Wapiti/archive/5f9a52351fddf21916008daa4becd41d56e7f608.tar.gz"
-    torch_extra                = "${TORCH_EXTRA}"
+    torch_group                = "${TORCH_GROUP}"
   }
 }
 
@@ -28,7 +28,7 @@ target "delft" {
 target "dev-gpu" {
   inherits = ["dev"]
   args = {
-    torch_extra = "gpu"
+    torch_group = "gpu"
   }
 }
 
