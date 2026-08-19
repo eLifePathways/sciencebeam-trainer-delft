@@ -5,22 +5,14 @@ import logging
 import time
 import tempfile
 import os
-from collections import Counter
 from datetime import datetime, timezone
-from itertools import islice
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 
 from sklearn.model_selection import train_test_split
 
-from sciencebeam_trainer_delft.sequence_labelling.typing import (
-    T_Batch_Features_Array,
-    T_Batch_Label_Array,
-    T_Batch_Token_Array
-)
 from sciencebeam_trainer_delft.utils.download_manager import DownloadManager
-from sciencebeam_trainer_delft.utils.numpy import shuffle_arrays
 from sciencebeam_trainer_delft.utils.io import (
     write_text,
     auto_uploading_output_file
@@ -45,7 +37,14 @@ from sciencebeam_trainer_delft.sequence_labelling.wrapper import (
 from sciencebeam_trainer_delft.sequence_labelling.trainer_torch import (
     set_random_seed as set_torch_random_seed
 )
-from sciencebeam_trainer_delft.sequence_labelling.reader import load_data_and_labels_crf_file
+from sciencebeam_trainer_delft.sequence_labelling.feature_lengths import (
+    DEFAULT_FEATURE_LENGTH_MODE
+)
+from sciencebeam_trainer_delft.sequence_labelling.tools.grobid_trainer.data_loading import (
+    DEFAULT_RANDOM_SEED,
+    load_data_and_labels,
+    load_data_and_labels_with_check_result
+)
 
 from sciencebeam_trainer_delft.sequence_labelling.engines.wapiti_adapters import (
     WapitiModelAdapter,
@@ -64,17 +63,6 @@ from sciencebeam_trainer_delft.sequence_labelling.evaluation import (
     ClassificationResult
 )
 
-from sciencebeam_trainer_delft.sequence_labelling.input_info import (
-    iter_flat_batch_tokens,
-    iter_flat_features,
-    get_quantiles,
-    get_quantiles_feature_value_length_by_index,
-    get_feature_counts,
-    get_suggested_feature_indices,
-    format_dict,
-    format_indices
-)
-
 from sciencebeam_trainer_delft.sequence_labelling.utils.checkpoints import (
     get_resume_train_model_params
 )
@@ -82,8 +70,6 @@ from sciencebeam_trainer_delft.sequence_labelling.utils.checkpoints import (
 
 LOGGER = logging.getLogger(__name__)
 
-
-DEFAULT_RANDOM_SEED = 42
 
 DEFAULT_TAG_OUTPUT_FORMAT = TagOutputFormats.XML
 
@@ -95,95 +81,6 @@ def set_random_seeds(random_seed: int):
 
 def get_default_training_data(model: str) -> str:
     return 'data/sequenceLabelling/grobid/' + model + '/' + model + '-060518.train'
-
-
-def log_data_info(x: np.ndarray, y: np.ndarray, features: np.ndarray):
-    LOGGER.info('x sample: %s (y: %s)', x[:1][:10], y[:1][:1])
-    LOGGER.info(
-        'feature dimensions of first sample, word: %s',
-        [{index: value for index, value in enumerate(features[0][0])}]  # noqa pylint: disable=unnecessary-comprehension
-    )
-
-
-def _load_data_and_labels_crf_files(
-    input_paths: List[str],
-    limit: Optional[int] = None
-) -> Tuple[T_Batch_Token_Array, T_Batch_Label_Array, T_Batch_Features_Array]:
-    if len(input_paths) == 1:
-        return load_data_and_labels_crf_file(input_paths[0], limit=limit)
-    x_list = []
-    y_list = []
-    features_list = []
-    for input_path in input_paths:
-        LOGGER.debug('calling load_data_and_labels_crf_file: %s', input_path)
-        x, y, f = load_data_and_labels_crf_file(
-            input_path,
-            limit=limit
-        )
-        x_list.append(x)
-        y_list.append(y)
-        features_list.append(f)
-    return np.concatenate(x_list), np.concatenate(y_list), np.concatenate(features_list)
-
-
-def get_clean_features_mask(features_all: np.ndarray) -> List[bool]:
-    feature_lengths = Counter((
-        len(features_vector)
-        for features_doc in features_all
-        for features_vector in features_doc
-    ))
-    if len(feature_lengths) <= 1:
-        return [True] * len(features_all)
-    expected_feature_length = next(feature_lengths.keys().__iter__())
-    LOGGER.info('cleaning features, expected_feature_length=%s', expected_feature_length)
-    return [
-        all(len(features_vector) == expected_feature_length for features_vector in features_doc)
-        for features_doc in features_all
-    ]
-
-
-def get_clean_x_y_features(x: np.ndarray, y: np.ndarray, features: np.ndarray):
-    clean_features_mask = get_clean_features_mask(features)
-    if sum(clean_features_mask) != len(clean_features_mask):
-        LOGGER.info(
-            'ignoring %d documents with inconsistent features',
-            len(clean_features_mask) - sum(clean_features_mask)
-        )
-        return (
-            x[clean_features_mask],
-            y[clean_features_mask],
-            features[clean_features_mask]
-        )
-    return x, y, features
-
-
-def load_data_and_labels(
-    input_paths: Optional[List[str]] = None,
-    limit: Optional[int] = None,
-    shuffle_input: bool = False,
-    clean_features: bool = True,
-    random_seed: int = DEFAULT_RANDOM_SEED,
-    download_manager: Optional[DownloadManager] = None
-) -> Tuple[T_Batch_Token_Array, T_Batch_Label_Array, T_Batch_Features_Array]:
-    assert download_manager
-    assert input_paths
-    LOGGER.info('loading data from: %s', input_paths)
-    downloaded_input_paths = [
-        download_manager.download_if_url(input_path)
-        for input_path in input_paths
-    ]
-    x_all, y_all, f_all = _load_data_and_labels_crf_files(
-        downloaded_input_paths,
-        limit=limit
-    )
-    if shuffle_input:
-        shuffle_arrays([x_all, y_all, f_all], random_seed=random_seed)
-    log_data_info(x_all, y_all, f_all)
-    if clean_features:
-        (x_all, y_all, f_all) = get_clean_x_y_features(
-            x_all, y_all, f_all
-        )
-    return x_all, y_all, f_all
 
 
 def notify_model_train_start(
@@ -208,12 +105,15 @@ def do_train(
     limit: Optional[int] = None,
     shuffle_input: bool = False,
     random_seed: int = DEFAULT_RANDOM_SEED,
+    feature_length_mode: str = DEFAULT_FEATURE_LENGTH_MODE,
     train_notification_manager: Optional[TrainNotificationManager] = None,
     download_manager: Optional[DownloadManager] = None
 ):
     x_all, y_all, features_all = load_data_and_labels(
         input_paths=input_paths, limit=limit, shuffle_input=shuffle_input,
         random_seed=random_seed,
+        feature_length_mode=feature_length_mode,
+        read_feature_indices=model.get_read_feature_indices(),
         download_manager=download_manager
     )
     x_train, x_valid, y_train, y_valid, features_train, features_valid = train_test_split(
@@ -301,6 +201,7 @@ def train(
     limit: Optional[int] = None,
     shuffle_input: bool = False,
     random_seed: int = DEFAULT_RANDOM_SEED,
+    feature_length_mode: str = DEFAULT_FEATURE_LENGTH_MODE,
     max_sequence_length: int = 100,
     max_epoch=100,
     resume_train_model_path: Optional[str] = None,
@@ -337,6 +238,7 @@ def train(
         limit=limit,
         shuffle_input=shuffle_input,
         random_seed=random_seed,
+        feature_length_mode=feature_length_mode,
         train_notification_manager=train_notification_manager,
         download_manager=download_manager
     )
@@ -351,6 +253,7 @@ def wapiti_train(
     limit: Optional[int] = None,
     shuffle_input: bool = False,
     random_seed: int = DEFAULT_RANDOM_SEED,
+    feature_length_mode: str = DEFAULT_FEATURE_LENGTH_MODE,
     max_epoch: int = 100,
     train_notification_manager: Optional[TrainNotificationManager] = None,
     gzip_enabled: bool = False,
@@ -376,6 +279,7 @@ def wapiti_train(
             limit=limit,
             shuffle_input=shuffle_input,
             random_seed=random_seed,
+            feature_length_mode=feature_length_mode,
             train_notification_manager=train_notification_manager,
             download_manager=download_manager
         )
@@ -427,6 +331,7 @@ def do_train_eval(
     limit: Optional[int] = None,
     shuffle_input: bool = False,
     random_seed: int = DEFAULT_RANDOM_SEED,
+    feature_length_mode: str = DEFAULT_FEATURE_LENGTH_MODE,
     eval_input_paths: Optional[List[str]] = None,
     eval_limit: Optional[int] = None,
     eval_output_args: Optional[dict] = None,
@@ -434,15 +339,23 @@ def do_train_eval(
     train_notification_manager: Optional[TrainNotificationManager] = None,
     download_manager: Optional[DownloadManager] = None
 ):
-    x_all, y_all, features_all = load_data_and_labels(
+    read_feature_indices = model.get_read_feature_indices()
+    x_all, y_all, features_all, check_result = load_data_and_labels_with_check_result(
         input_paths=input_paths, limit=limit, shuffle_input=shuffle_input,
         random_seed=random_seed,
+        feature_length_mode=feature_length_mode,
+        read_feature_indices=read_feature_indices,
         download_manager=download_manager
     )
 
     if eval_input_paths:
+        # held to the feature length the training data settled on: a model evaluated on
+        # features it was not trained on is the same defect
         x_eval, y_eval, features_eval = load_data_and_labels(
             input_paths=eval_input_paths, limit=eval_limit,
+            feature_length_mode=feature_length_mode,
+            read_feature_indices=read_feature_indices,
+            expected_feature_count=check_result.adopted_feature_count,
             download_manager=download_manager
         )
         x_train_all, y_train_all, features_train_all = (
@@ -544,6 +457,7 @@ def train_eval(
     limit: Optional[int] = None,
     shuffle_input: bool = False,
     random_seed: int = DEFAULT_RANDOM_SEED,
+    feature_length_mode: str = DEFAULT_FEATURE_LENGTH_MODE,
     eval_input_paths: Optional[List[str]] = None,
     eval_limit: Optional[int] = None,
     eval_output_args: Optional[dict] = None,
@@ -589,6 +503,7 @@ def train_eval(
         limit=limit,
         shuffle_input=shuffle_input,
         random_seed=random_seed,
+        feature_length_mode=feature_length_mode,
         eval_input_paths=eval_input_paths,
         eval_limit=eval_limit,
         eval_output_args=eval_output_args,
@@ -606,6 +521,7 @@ def wapiti_train_eval(
     limit: Optional[int] = None,
     shuffle_input: bool = False,
     random_seed: int = DEFAULT_RANDOM_SEED,
+    feature_length_mode: str = DEFAULT_FEATURE_LENGTH_MODE,
     eval_input_paths: Optional[List[str]] = None,
     eval_limit: Optional[int] = None,
     eval_output_args: Optional[dict] = None,
@@ -636,6 +552,7 @@ def wapiti_train_eval(
             limit=limit,
             shuffle_input=shuffle_input,
             random_seed=random_seed,
+            feature_length_mode=feature_length_mode,
             eval_input_paths=eval_input_paths,
             eval_limit=eval_limit,
             eval_output_args=eval_output_args,
@@ -651,12 +568,15 @@ def do_eval_model(
     shuffle_input: bool = False,
     split_input: bool = False,
     random_seed: int = DEFAULT_RANDOM_SEED,
+    feature_length_mode: str = DEFAULT_FEATURE_LENGTH_MODE,
     eval_output_args: Optional[dict] = None,
     download_manager: Optional[DownloadManager] = None
 ):
     x_all, y_all, features_all = load_data_and_labels(
         input_paths=input_paths, limit=limit, shuffle_input=shuffle_input,
         random_seed=random_seed,
+        feature_length_mode=feature_length_mode,
+        read_feature_indices=model.get_read_feature_indices(),
         download_manager=download_manager
     )
 
@@ -734,6 +654,7 @@ def eval_model(
     shuffle_input: bool = False,
     split_input: bool = False,
     random_seed: int = DEFAULT_RANDOM_SEED,
+    feature_length_mode: str = DEFAULT_FEATURE_LENGTH_MODE,
     max_sequence_length: int = 100,
     fold_count: int = 1,
     batch_size: int = 20,
@@ -761,6 +682,7 @@ def eval_model(
         shuffle_input=shuffle_input,
         random_seed=random_seed,
         split_input=split_input,
+        feature_length_mode=feature_length_mode,
         eval_output_args=eval_output_args,
         download_manager=download_manager
     )
@@ -774,6 +696,7 @@ def wapiti_eval_model(
     shuffle_input: bool = False,
     split_input: bool = False,
     random_seed: int = DEFAULT_RANDOM_SEED,
+    feature_length_mode: str = DEFAULT_FEATURE_LENGTH_MODE,
     fold_count: int = 1,
     eval_output_args: Optional[dict] = None,
     wapiti_binary_path: Optional[str] = None
@@ -792,6 +715,7 @@ def wapiti_eval_model(
         shuffle_input=shuffle_input,
         random_seed=random_seed,
         split_input=split_input,
+        feature_length_mode=feature_length_mode,
         eval_output_args=eval_output_args,
         download_manager=download_manager
     )
@@ -806,11 +730,14 @@ def do_tag_input(
     limit: Optional[int] = None,
     shuffle_input: bool = False,
     random_seed: int = DEFAULT_RANDOM_SEED,
+    feature_length_mode: str = DEFAULT_FEATURE_LENGTH_MODE,
     download_manager: Optional[DownloadManager] = None
 ):
     x_all, y_all, features_all = load_data_and_labels(
         input_paths=input_paths, limit=limit, shuffle_input=shuffle_input,
         random_seed=random_seed,
+        feature_length_mode=feature_length_mode,
+        read_feature_indices=model.get_read_feature_indices(),
         download_manager=download_manager
     )
 
@@ -874,6 +801,7 @@ def tag_input(
     limit: Optional[int] = None,
     shuffle_input: bool = False,
     random_seed: int = DEFAULT_RANDOM_SEED,
+    feature_length_mode: str = DEFAULT_FEATURE_LENGTH_MODE,
     max_sequence_length: Optional[int] = None,
     input_window_stride: Optional[int] = None,
     stateful: Optional[bool] = None,
@@ -906,6 +834,7 @@ def tag_input(
         limit=limit,
         shuffle_input=shuffle_input,
         random_seed=random_seed,
+        feature_length_mode=feature_length_mode,
         download_manager=download_manager
     )
 
@@ -920,6 +849,7 @@ def wapiti_tag_input(
     limit: Optional[int] = None,
     random_seed: int = DEFAULT_RANDOM_SEED,
     shuffle_input: bool = False,
+    feature_length_mode: str = DEFAULT_FEATURE_LENGTH_MODE,
     wapiti_binary_path: Optional[str] = None
 ):
     model: WapitiModelAdapter = WapitiModelAdapter.load_from(
@@ -936,55 +866,6 @@ def wapiti_tag_input(
         limit=limit,
         shuffle_input=shuffle_input,
         random_seed=random_seed,
+        feature_length_mode=feature_length_mode,
         download_manager=download_manager
     )
-
-
-def print_input_info(
-    input_paths: List[str],
-    limit: Optional[int] = None,
-    download_manager: Optional[DownloadManager] = None
-):
-    x_all, y_all, features_all = load_data_and_labels(
-        input_paths=input_paths, limit=limit,
-        download_manager=download_manager,
-        clean_features=False
-    )
-
-    seq_lengths = np.array([len(seq) for seq in x_all])
-    y_counts = Counter(
-        y_row
-        for y_doc in y_all
-        for y_row in y_doc
-    )
-    flat_features = list(iter_flat_features(features_all))
-    feature_lengths = Counter(map(len, flat_features))
-
-    print('number of input sequences: %d' % len(x_all))
-    print('sequence lengths: %s' % format_dict(get_quantiles(seq_lengths)))
-    print('token lengths: %s' % format_dict(get_quantiles(
-        map(len, iter_flat_batch_tokens(x_all))
-    )))
-    print('number of features: %d' % len(features_all[0][0]))
-    if len(feature_lengths) > 1:
-        print('inconsistent feature length counts: %s' % format_dict(feature_lengths))
-        for feature_length in feature_lengths:
-            print('examples with feature length=%d:\n%s' % (
-                feature_length,
-                '\n'.join(islice((
-                    ' '.join(features_vector)
-                    for features_vector in flat_features
-                    if len(features_vector) == feature_length
-                ), 3))
-            ))
-        (x_all, y_all, features_all) = get_clean_x_y_features(
-            x_all, y_all, features_all
-        )
-    quantiles_feature_value_lengths = get_quantiles_feature_value_length_by_index(features_all)
-    feature_counts = get_feature_counts(features_all)
-    print('feature value lengths: %s' % format_dict(quantiles_feature_value_lengths))
-    print('feature counts: %s' % format_dict(feature_counts))
-    print('suggested feature indices: %s' % format_indices(
-        get_suggested_feature_indices(feature_counts)
-    ))
-    print('label counts: %s' % format_dict(y_counts))

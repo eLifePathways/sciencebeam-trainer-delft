@@ -22,9 +22,16 @@ from sciencebeam_trainer_delft.sequence_labelling.transfer_learning import (
 )
 
 import sciencebeam_trainer_delft.sequence_labelling.tools.grobid_trainer.utils as utils_module
+import sciencebeam_trainer_delft.sequence_labelling.tools.grobid_trainer.data_loading \
+    as data_loading_module
+from sciencebeam_trainer_delft.sequence_labelling.feature_lengths import (
+    FeatureLengthModes,
+    InconsistentFeatureLengthError
+)
 from sciencebeam_trainer_delft.sequence_labelling.tools.grobid_trainer.utils import (
     set_random_seeds,
     load_data_and_labels,
+    load_data_and_labels_with_check_result,
     train,
     train_eval,
     tag_input,
@@ -76,6 +83,44 @@ MODEL_NAME_1 = 'model1'
 
 INPUT_PATH_1 = '/path/to/dataset1'
 INPUT_PATH_2 = '/path/to/dataset2'
+
+
+def to_object_array(items: list) -> np.ndarray:
+    # one entry per document, whatever the documents' shapes
+    array = np.empty(len(items), dtype='object')
+    for index, item in enumerate(items):
+        array[index] = item
+    return array
+
+
+def get_input_data(feature_lengths: List[int], input_index: int, row_count: int = 2):
+    """Builds one input's (x, y, features), with a document per requested feature length."""
+    x = to_object_array([
+        ['token_%d_%d' % (input_index, document_index)] * row_count
+        for document_index in range(len(feature_lengths))
+    ])
+    y = to_object_array([
+        ['I-<title>'] * row_count
+        for _ in feature_lengths
+    ])
+    features = to_object_array([
+        [['f%d' % index for index in range(feature_length)]] * row_count
+        for feature_length in feature_lengths
+    ])
+    return x, y, features
+
+
+def set_input_data(
+    load_data_and_labels_crf_file_mock: MagicMock,
+    download_manager_mock: MagicMock,
+    feature_lengths_by_input: List[List[int]]
+):
+    download_manager_mock.download_if_url.side_effect = lambda input_path: input_path
+    load_data_and_labels_crf_file_mock.side_effect = [
+        get_input_data(feature_lengths, input_index)
+        for input_index, feature_lengths in enumerate(feature_lengths_by_input)
+    ]
+
 
 FEATURE_INDICES_1 = [9, 10, 11]
 
@@ -141,7 +186,7 @@ def _get_default_training_data_mock():
 
 @pytest.fixture(name='load_data_and_labels_crf_file_mock')
 def _load_data_and_labels_crf_file_mock():
-    with patch.object(utils_module, 'load_data_and_labels_crf_file') as mock:
+    with patch.object(data_loading_module, 'load_data_and_labels_crf_file') as mock:
         mock.return_value = (MagicMock(), MagicMock(), MagicMock())
         yield mock
 
@@ -169,7 +214,7 @@ def get_mock_shuffle_arrays(arrays: List[np.ndarray], **_) -> List[np.ndarray]:
 
 @pytest.fixture(name='shuffle_arrays_mock')
 def _shuffle_arrays_mock():
-    with patch.object(utils_module, 'shuffle_arrays') as mock:
+    with patch.object(data_loading_module, 'shuffle_arrays') as mock:
         mock.side_effect = _mock_shuffle_arrays
         yield mock
 
@@ -320,6 +365,119 @@ class TestGrobidTrainerUtils:
             assert (x == get_mock_shuffle_arrays(x.tolist())).all()
             assert (y == get_mock_shuffle_arrays(y.tolist())).all()
             assert (f == get_mock_shuffle_arrays(f.tolist())).all()
+
+    @pytest.mark.usefixtures('get_default_training_data_mock')
+    class TestLoadDataAndLabelsFeatureLengths:
+        def test_should_load_a_consistent_corpus_unchanged(
+                self,
+                load_data_and_labels_crf_file_mock: MagicMock,
+                download_manager_mock: MagicMock):
+            set_input_data(
+                load_data_and_labels_crf_file_mock, download_manager_mock,
+                [[30, 30], [30]]
+            )
+            x, _, features = load_data_and_labels(
+                input_paths=[INPUT_PATH_1, INPUT_PATH_2],
+                download_manager=download_manager_mock
+            )
+            assert len(x) == 3
+            assert [len(features_doc[0]) for features_doc in features] == [30, 30, 30]
+
+        def test_should_raise_by_default_naming_the_lengths_and_the_inputs(
+                self,
+                load_data_and_labels_crf_file_mock: MagicMock,
+                download_manager_mock: MagicMock):
+            set_input_data(
+                load_data_and_labels_crf_file_mock, download_manager_mock,
+                [[30, 30], [31]]
+            )
+            with pytest.raises(InconsistentFeatureLengthError) as exc_info:
+                load_data_and_labels(
+                    input_paths=[INPUT_PATH_1, INPUT_PATH_2],
+                    download_manager=download_manager_mock
+                )
+            message = str(exc_info.value)
+            assert INPUT_PATH_1 in message
+            assert INPUT_PATH_2 in message
+            assert '30' in message and '31' in message
+
+        def test_should_raise_by_default_for_a_single_internally_mixed_input(
+                self,
+                load_data_and_labels_crf_file_mock: MagicMock,
+                download_manager_mock: MagicMock):
+            set_input_data(
+                load_data_and_labels_crf_file_mock, download_manager_mock,
+                [[30, 31]]
+            )
+            with pytest.raises(InconsistentFeatureLengthError):
+                load_data_and_labels(
+                    input_paths=[INPUT_PATH_1],
+                    download_manager=download_manager_mock
+                )
+
+        def test_should_accept_mixed_widths_where_the_read_features_are_present(
+                self,
+                load_data_and_labels_crf_file_mock: MagicMock,
+                download_manager_mock: MagicMock):
+            set_input_data(
+                load_data_and_labels_crf_file_mock, download_manager_mock,
+                [[30, 30], [31]]
+            )
+            x, _, _ = load_data_and_labels(
+                input_paths=[INPUT_PATH_1, INPUT_PATH_2],
+                feature_length_mode=FeatureLengthModes.ACCEPT,
+                read_feature_indices={9, 27},
+                download_manager=download_manager_mock
+            )
+            assert len(x) == 3
+
+        def test_should_drop_the_same_documents_whatever_the_seed(
+                self,
+                load_data_and_labels_crf_file_mock: MagicMock,
+                download_manager_mock: MagicMock):
+            def get_retained_tokens(random_seed: int):
+                set_input_data(
+                    load_data_and_labels_crf_file_mock, download_manager_mock,
+                    [[30, 30], [31]]
+                )
+                x, _, _ = load_data_and_labels(
+                    input_paths=[INPUT_PATH_1, INPUT_PATH_2],
+                    feature_length_mode=FeatureLengthModes.DROP,
+                    # index 30 needs 31 features, which the 30-feature documents lack
+                    read_feature_indices={30},
+                    shuffle_input=True,
+                    random_seed=random_seed,
+                    download_manager=download_manager_mock
+                )
+                return sorted(doc[0] for doc in x)
+
+            # the real shuffle, so that seed-independence is what is being shown
+            retained_with_first_seed = get_retained_tokens(1)
+            retained_with_second_seed = get_retained_tokens(424)
+            assert retained_with_first_seed == ['token_1_0']
+            assert retained_with_first_seed == retained_with_second_seed
+
+        def test_should_hold_a_later_load_to_the_adopted_feature_count(
+                self,
+                load_data_and_labels_crf_file_mock: MagicMock,
+                download_manager_mock: MagicMock):
+            set_input_data(
+                load_data_and_labels_crf_file_mock, download_manager_mock, [[30]]
+            )
+            _, _, _, check_result = load_data_and_labels_with_check_result(
+                input_paths=[INPUT_PATH_1],
+                download_manager=download_manager_mock
+            )
+            assert check_result.adopted_feature_count == 30
+            set_input_data(
+                load_data_and_labels_crf_file_mock, download_manager_mock, [[31]]
+            )
+            with pytest.raises(InconsistentFeatureLengthError):
+                load_data_and_labels(
+                    input_paths=[INPUT_PATH_2],
+                    expected_feature_count=check_result.adopted_feature_count,
+                    download_manager=download_manager_mock
+                )
 
     @pytest.mark.slow
     @pytest.mark.very_slow
