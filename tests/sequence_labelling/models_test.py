@@ -152,6 +152,121 @@ class TestCustomBidLSTMCRF:
         unmasked_loss = model(inputs, labels)['loss'].item()
         assert masked_loss != unmasked_loss
 
+    def test_should_not_mask_padded_tokens_by_default(self):
+        # the published models were all trained unmasked, so a config without
+        # the key has to keep running over the padding
+        assert _model_config().mask_padded_tokens is False
+        model = CustomBidLSTM_CRF(_model_config(), NTAGS)
+        assert model.char_encoder.mask_padded_characters is False
+        inputs, _ = _batch(_model_config())
+        assert model.get_token_mask(inputs) is None
+
+
+REAL_LENGTH = 3
+PADDED_CHAR_INPUT = torch.tensor([[
+    # three real tokens, each with trailing character padding, then four
+    # padded token positions
+    [1, 2, 0, 0, 0], [3, 4, 5, 0, 0], [6, 7, 0, 0, 0],
+    [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]
+]])
+
+
+def _padded_batch(model_config: ModelConfig, length: int):
+    features = torch.zeros(1, length, model_config.max_feature_size)
+    features[:, :REAL_LENGTH] = 1.0
+    inputs = {
+        'word_input': torch.zeros(1, length, model_config.word_embedding_size),
+        'char_input': PADDED_CHAR_INPUT[:, :length],
+        'features_input': features
+    }
+    labels = torch.zeros(1, length, dtype=torch.long)
+    labels[:, :REAL_LENGTH] = torch.tensor([[1, 2, 3]])
+    return inputs, labels
+
+
+class TestCustomBidLSTMCRFBatchInvariance:
+    """The real positions must not depend on how much padding follows them.
+
+    A batch is padded to its longest member, so without this the same document
+    scores and decodes differently depending on what it is batched with.
+    """
+
+    @pytest.mark.parametrize('padded_length', [REAL_LENGTH + 1, REAL_LENGTH + 4])
+    def test_should_produce_the_same_logits_whatever_the_padding(
+        self, padded_length: int
+    ):
+        model_config = _model_config(
+            dropout=0.0, char_vocab_size=12, max_char_length=5,
+            mask_padded_tokens=True
+        )
+        model = CustomBidLSTM_CRF(model_config, NTAGS)
+        model.eval()
+        unpadded_inputs, _ = _padded_batch(model_config, REAL_LENGTH)
+        padded_inputs, _ = _padded_batch(model_config, padded_length)
+        with torch.no_grad():
+            unpadded = model(unpadded_inputs)['logits']
+            padded = model(padded_inputs)['logits'][:, :REAL_LENGTH]
+        assert torch.allclose(unpadded, padded, atol=1e-6)
+
+    @pytest.mark.parametrize('padded_length', [REAL_LENGTH + 1, REAL_LENGTH + 4])
+    def test_should_produce_the_same_loss_whatever_the_padding(
+        self, padded_length: int
+    ):
+        model_config = _model_config(
+            dropout=0.0, char_vocab_size=12, max_char_length=5,
+            mask_padded_tokens=True
+        )
+        model = CustomBidLSTM_CRF(model_config, NTAGS)
+        model.eval()
+        unpadded_inputs, unpadded_labels = _padded_batch(model_config, REAL_LENGTH)
+        padded_inputs, padded_labels = _padded_batch(model_config, padded_length)
+        with torch.no_grad():
+            unpadded = model(unpadded_inputs, unpadded_labels)['loss']
+            padded = model(padded_inputs, padded_labels)['loss']
+        assert torch.allclose(unpadded, padded, atol=1e-5)
+
+    @pytest.mark.parametrize('padded_length', [REAL_LENGTH + 1, REAL_LENGTH + 4])
+    def test_should_decode_the_same_tags_whatever_the_padding(
+        self, padded_length: int
+    ):
+        model_config = _model_config(
+            dropout=0.0, char_vocab_size=12, max_char_length=5,
+            mask_padded_tokens=True
+        )
+        model = CustomBidLSTM_CRF(model_config, NTAGS)
+        model.eval()
+        unpadded_inputs, _ = _padded_batch(model_config, REAL_LENGTH)
+        padded_inputs, _ = _padded_batch(model_config, padded_length)
+        unpadded = torch.as_tensor(model.decode(unpadded_inputs))
+        padded = torch.as_tensor(model.decode(padded_inputs))[:, :REAL_LENGTH]
+        assert torch.equal(unpadded, padded)
+
+    def test_should_encode_a_token_the_same_whatever_its_character_padding(self):
+        model_config = _model_config(
+            char_vocab_size=12, max_char_length=5, mask_padded_tokens=True
+        )
+        encoder = CustomBidLSTM_CRF(model_config, NTAGS).char_encoder
+        encoder.eval()
+        with torch.no_grad():
+            narrow = encoder(torch.tensor([[[1, 2, 0]]]))
+            wide = encoder(torch.tensor([[[1, 2, 0, 0, 0]]]))
+        assert torch.allclose(narrow, wide, atol=1e-6)
+
+    def test_should_remain_padding_dependent_when_masking_is_disabled(self):
+        # guards the default: this is the behaviour the published models have
+        model_config = _model_config(
+            dropout=0.0, char_vocab_size=12, max_char_length=5,
+            mask_padded_tokens=False
+        )
+        model = CustomBidLSTM_CRF(model_config, NTAGS)
+        model.eval()
+        unpadded_inputs, _ = _padded_batch(model_config, REAL_LENGTH)
+        padded_inputs, _ = _padded_batch(model_config, REAL_LENGTH + 4)
+        with torch.no_grad():
+            unpadded = model(unpadded_inputs)['logits']
+            padded = model(padded_inputs)['logits'][:, :REAL_LENGTH]
+        assert not torch.allclose(unpadded, padded, atol=1e-6)
+
 
 @pytest.mark.skipif(
     not REFERENCE_CAPTURE_PATH.exists(),

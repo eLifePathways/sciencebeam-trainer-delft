@@ -497,6 +497,27 @@ def add_train_arguments(parser: argparse.ArgumentParser):
         help="mask PAD positions from the CRF loss (excludes padding from gradient)"
     )
     parser.add_argument(
+        "--mask-padded-tokens",
+        dest="mask_padded_tokens",
+        default=True,
+        action="store_true",
+        help=(
+            "Skip padded positions in the character encoder, the word LSTM and"
+            " the CRF, so a document scores and decodes the same whatever it is"
+            " batched with (default)"
+        )
+    )
+    parser.add_argument(
+        "--no-mask-padded-tokens",
+        dest="mask_padded_tokens",
+        default=True,
+        action="store_false",
+        help=(
+            "Run over padded positions as well, reproducing the behaviour every"
+            " published model was trained with"
+        )
+    )
+    parser.add_argument(
         "--char-input-dropout", type=float, default=DEFAULT_CHAR_INPUT_DROPOUT,
         help="dropout for char input"
     )

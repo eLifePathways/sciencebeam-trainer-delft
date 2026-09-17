@@ -67,6 +67,20 @@ class TestGrobidTrainer:
             ])
             assert opt.input == [INPUT_PATH_1, INPUT_PATH_2]
 
+        def test_should_mask_padded_tokens_by_default(self):
+            # a new model should not depend on how its batches are composed;
+            # the model config defaults the other way, so that a saved model
+            # without the key keeps the behaviour it was trained with
+            opt = parse_args(['header', 'train', '--input', INPUT_PATH_1])
+            assert opt.mask_padded_tokens is True
+
+        def test_should_allow_unsetting_mask_padded_tokens(self):
+            opt = parse_args([
+                'header', 'train', '--input', INPUT_PATH_1,
+                '--no-mask-padded-tokens'
+            ])
+            assert opt.mask_padded_tokens is False
+
         def test_should_refuse_inconsistent_feature_lengths_by_default(self):
             opt = parse_args(['header', 'train', '--input', INPUT_PATH_1])
             assert opt.on_inconsistent_feature_lengths == FeatureLengthModes.FAIL
