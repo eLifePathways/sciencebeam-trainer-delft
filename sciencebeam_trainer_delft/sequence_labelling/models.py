@@ -24,10 +24,17 @@ from delft.sequenceLabelling.models import (
 from delft.utilities.crf_pytorch import CRF, ChainCRF
 
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig
+from sciencebeam_trainer_delft.sequence_labelling.masking import (
+    get_mask_for_char_input,
+    run_masked_final_state_lstm,
+    run_masked_lstm
+)
 from sciencebeam_trainer_delft.sequence_labelling.upstream_patches import (
     patch_bid_lstm_crf_char_masking,
     patch_bid_lstm_crf_token_masking,
-    patch_chain_crf_eager_build
+    patch_chain_crf_eager_build,
+    patch_chain_crf_masked_decode,
+    patch_chain_crf_masked_free_energy
 )
 
 
@@ -47,6 +54,12 @@ patch_chain_crf_eager_build()
 patch_bid_lstm_crf_char_masking()
 patch_bid_lstm_crf_token_masking()
 
+# a mask reaches the CRF from every architecture here, and upstream's ChainCRF
+# ignores it in the partition function and decodes from the padded end, so
+# without these the mask does not make the loss or the tags batch-independent
+patch_chain_crf_masked_free_energy()
+patch_chain_crf_masked_decode()
+
 
 class CharacterEncoder(nn.Module):
     """Encodes the characters of each token with a bidirectional LSTM.
@@ -61,7 +74,8 @@ class CharacterEncoder(nn.Module):
         char_embedding_size: int,
         num_char_lstm_units: int,
         char_input_mask_zero: bool = False,
-        char_input_dropout: float = 0.0
+        char_input_dropout: float = 0.0,
+        mask_padded_characters: bool = False
     ):
         super().__init__()
         self.char_embeddings = nn.Embedding(
@@ -77,11 +91,17 @@ class CharacterEncoder(nn.Module):
             bidirectional=True
         )
         self.output_size = num_char_lstm_units * 2
+        self.mask_padded_characters = mask_padded_characters
 
     def forward(self, char_input: torch.Tensor) -> torch.Tensor:
         batch_size, sequence_length, max_char_length = char_input.shape
         flattened = char_input.reshape(batch_size * sequence_length, max_char_length)
         char_embeddings = self.char_input_dropout(self.char_embeddings(flattened))
+        if self.mask_padded_characters:
+            encoded = run_masked_final_state_lstm(
+                self.char_lstm, char_embeddings, (flattened != 0).sum(dim=1)
+            )
+            return encoded.view(batch_size, sequence_length, self.output_size)
         _, (hidden, _) = self.char_lstm(char_embeddings)
         # concatenate the final state of each direction, as Keras does for
         # Bidirectional(LSTM(return_sequences=False))
@@ -112,7 +132,8 @@ class CustomBidLSTM_CRF(nn.Module):  # pylint: disable=invalid-name
             char_embedding_size=config.char_embedding_size,
             num_char_lstm_units=config.num_char_lstm_units,
             char_input_mask_zero=config.char_input_mask_zero,
-            char_input_dropout=config.char_input_dropout
+            char_input_dropout=config.char_input_dropout,
+            mask_padded_characters=config.mask_padded_tokens
         )
 
         word_lstm_input_size = config.word_embedding_size + self.char_encoder.output_size
@@ -157,14 +178,36 @@ class CustomBidLSTM_CRF(nn.Module):  # pylint: disable=invalid-name
             return lstm_inputs[0]
         return torch.cat(lstm_inputs, dim=-1)
 
-    def get_logits(self, inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
+    def get_token_mask(
+        self, inputs: Dict[str, torch.Tensor]
+    ) -> Optional[torch.Tensor]:
+        return get_mask_for_char_input(
+            inputs['char_input'], enabled=self.config.mask_padded_tokens
+        )
+
+    def get_logits(
+        self,
+        inputs: Dict[str, torch.Tensor],
+        mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         x = self.dropout(self.get_word_lstm_input(inputs))
-        lstm_output, _ = self.word_lstm(x)
+        if mask is not None:
+            lstm_output = run_masked_lstm(self.word_lstm, x, mask)
+        else:
+            lstm_output, _ = self.word_lstm(x)
         x = self.dropout(lstm_output)
         x = torch.tanh(self.word_lstm_dense(x))
         return self.dense_ntags(x)
 
-    def get_crf_mask(self, labels: torch.Tensor) -> Optional[torch.Tensor]:
+    def get_crf_mask(
+        self,
+        labels: torch.Tensor,
+        token_mask: Optional[torch.Tensor] = None
+    ) -> Optional[torch.Tensor]:
+        if token_mask is not None:
+            # derived from the input, so the same mask applies when decoding,
+            # where there are no labels to take it from
+            return token_mask
         if not self.config.masked_crf_loss:
             return None
         # PAD has label index 0; without masking those positions dominate the
@@ -176,15 +219,21 @@ class CustomBidLSTM_CRF(nn.Module):  # pylint: disable=invalid-name
         inputs: Dict[str, torch.Tensor],
         labels: Optional[torch.Tensor] = None
     ) -> Dict[str, torch.Tensor]:
-        logits = self.get_logits(inputs)
+        token_mask = self.get_token_mask(inputs)
+        logits = self.get_logits(inputs, mask=token_mask)
         outputs = {'logits': logits}
         if labels is not None:
-            outputs['loss'] = self.crf(logits, labels, mask=self.get_crf_mask(labels))
+            outputs['loss'] = self.crf(
+                logits, labels, mask=self.get_crf_mask(labels, token_mask)
+            )
         return outputs
 
     def decode(self, inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
         with torch.no_grad():
-            return self.crf.decode(self.get_logits(inputs))
+            token_mask = self.get_token_mask(inputs)
+            return self.crf.decode(
+                self.get_logits(inputs, mask=token_mask), mask=token_mask
+            )
 
 
 class CustomBidLSTM_CRF_FEATURES(nn.Module):  # pylint: disable=invalid-name

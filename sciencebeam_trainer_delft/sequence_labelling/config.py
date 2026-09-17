@@ -34,6 +34,10 @@ class ModelConfig(_ModelConfig):
         char_lstm_dropout: float = DEFAULT_CHAR_LSTM_DROPOUT,
         stateful: bool = False,
         masked_crf_loss: bool = False,
+        # defaults to False so that a saved config without the key loads with
+        # the unmasked behaviour every published model was trained with. New
+        # training runs get it from the CLI, which defaults it on.
+        mask_padded_tokens: bool = False,
         model_version: int = MODEL_VERSION,
         # deprecated
         feature_indices: Optional[List[int]] = None,
@@ -59,6 +63,7 @@ class ModelConfig(_ModelConfig):
         self.char_lstm_dropout = char_lstm_dropout
         self.stateful = stateful
         self.masked_crf_loss = masked_crf_loss
+        self.mask_padded_tokens = mask_padded_tokens
         self.model_version = model_version
         for key, val in kwargs.items():
             setattr(self, key, val)

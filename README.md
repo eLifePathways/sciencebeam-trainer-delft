@@ -496,6 +496,21 @@ python -m sciencebeam_trainer_delft.sequence_labelling.grobid_trainer \
     --max-epoch="50"
 ```
 
+### Padded positions
+
+A batch is padded to the length of its longest document, and to the longest
+token within it. By default those padded positions are skipped: the character
+encoder, the word LSTM and the CRF all run over the real positions only, so a
+document scores and decodes the same whatever it is batched with.
+
+Pass `--no-mask-padded-tokens` to run over the padding as well. That is what
+every model published before this option was added was trained with, and how
+such a model still loads: the flag is recorded in the model config, and a
+config without it keeps the unmasked behaviour rather than silently changing
+what the model does. Tagging with the deployed header model shows what is at
+stake: without masking, 1.2% of its tokens take a different label at batch size
+64 than at batch size 1.
+
 ### Training very long sequences
 
 Some training sequences can be very long and may exceed the available memory. This is in particular an issue when training the sequences.
