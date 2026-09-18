@@ -30,9 +30,6 @@ from sciencebeam_trainer_delft.sequence_labelling.masking import (
     run_masked_lstm
 )
 from sciencebeam_trainer_delft.sequence_labelling.upstream_patches import (
-    patch_bid_lstm_crf_char_masking,
-    patch_bid_lstm_crf_token_masking,
-    patch_chain_crf_eager_build,
     patch_chain_crf_masked_decode,
     patch_chain_crf_masked_free_energy
 )
@@ -41,22 +38,11 @@ from sciencebeam_trainer_delft.sequence_labelling.upstream_patches import (
 LOGGER = logging.getLogger(__name__)
 
 
-# the CRF has to register its transition parameters when it is constructed,
-# or they are missing from the optimizer and from a fresh model's state dict.
-# applied here rather than in get_model, so that constructing an architecture
-# directly is safe too
-patch_chain_crf_eager_build()
-
-# upstream's shared CharacterEncoder implements the unmasked behaviour, which
-# is right for every architecture here except BidLSTM_CRF, whose Keras
-# counterpart set mask_zero=True. That mask reached the word LSTM too, so
-# without it a document's predictions depend on what it is batched with
-patch_bid_lstm_crf_char_masking()
-patch_bid_lstm_crf_token_masking()
-
 # a mask reaches the CRF from every architecture here, and upstream's ChainCRF
 # ignores it in the partition function and decodes from the padded end, so
-# without these the mask does not make the loss or the tags batch-independent
+# without these the mask does not make the loss or the tags batch-independent.
+# applied here rather than in get_model, so that constructing an architecture
+# directly is safe too
 patch_chain_crf_masked_free_energy()
 patch_chain_crf_masked_decode()
 
