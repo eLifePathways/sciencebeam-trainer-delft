@@ -392,10 +392,10 @@ def is_model_stateful(model: nn.Module) -> bool:
 def to_padded_tag_indices(decoded, sequence_length: int) -> torch.Tensor:
     """Returns `[batch, sequence_length]` tag indices, whichever CRF decoded them.
 
-    `ChainCRF` decodes to a tensor of the full width. The pytorch-crf based
-    `CRF` decodes to one list per sequence, and a masked decode truncates each
-    to its own length, so the padding is filled back in here: callers expect
-    one tag per position.
+    Both CRFs decode to one list per sequence. `ChainCRF` gives each the full
+    width, while the pytorch-crf based `CRF` truncates each to its own length
+    when masked, so the padding is filled back in here: callers expect one tag
+    per position.
     """
     if isinstance(decoded, torch.Tensor):
         return decoded
