@@ -35,7 +35,8 @@ class ModelConfig(_ModelConfig):
         stateful: bool = False,
         masked_crf_loss: bool = False,
         # defaults to False so that a saved config without the key loads with
-        # the unmasked behaviour every published model was trained with. New
+        # the unmasked behaviour a model from before this option was trained
+        # with. New
         # training runs get it from the CLI, which defaults it on.
         mask_padded_tokens: bool = False,
         model_version: int = MODEL_VERSION,

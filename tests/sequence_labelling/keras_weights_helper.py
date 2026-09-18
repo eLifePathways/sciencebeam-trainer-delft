@@ -1,8 +1,8 @@
 """Writes a Keras-layout weights file from a torch model, for tests.
 
 This is the inverse of `tf_weight_conversion`, so that a test can produce a
-TF-era file whose contents it already knows, without carrying a published model
-as a fixture.
+TF-era file whose contents it already knows, without carrying a real model as
+a fixture.
 """
 from pathlib import Path
 from typing import Any, Dict, Union, cast

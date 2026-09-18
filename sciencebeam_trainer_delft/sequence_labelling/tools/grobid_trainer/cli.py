@@ -195,7 +195,8 @@ class GrobidTrainerSubCommand(SubCommand):
                 features_lstm_units=args.features_lstm_units,
                 stateful=args.stateful,
                 masked_crf_loss=args.masked_crf_loss,
-                mask_padded_tokens=args.mask_padded_tokens
+                mask_padded_tokens=args.mask_padded_tokens,
+                use_chain_crf=args.use_chain_crf
             ),
             training_props=dict(
                 initial_epoch=args.initial_epoch,

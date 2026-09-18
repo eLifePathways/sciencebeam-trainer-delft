@@ -80,7 +80,8 @@ def get_mask_for_char_input(
     """The token mask when masking is enabled, otherwise nothing.
 
     A `None` mask is what the layers here take to mean "run over the padding
-    too", which is the behaviour every published model was trained with.
+    too", which is the behaviour a model from before this option was trained
+    with.
     """
     if not enabled:
         return None

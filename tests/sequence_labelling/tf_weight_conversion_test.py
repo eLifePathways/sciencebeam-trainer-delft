@@ -41,7 +41,10 @@ def _model_config() -> ModelConfig:
         dropout=0.0,
         use_features=True,
         max_feature_size=MAX_FEATURE_SIZE,
-        features_embedding_size=0
+        features_embedding_size=0,
+        # the TensorFlow era models are all chain CRF, so that is what their
+        # weights convert into
+        use_chain_crf=True
     )
 
 
@@ -261,3 +264,16 @@ class TestLoadKerasWeightsIntoModelRefusal:
         filepath.write_bytes(b'not an hdf5 file at all')
         with pytest.raises(OSError):
             load_keras_weights_into_model(str(filepath), model)
+
+
+class TestLoadKerasWeightsIntoModelWithMismatchedCrf:
+    def test_should_name_the_crf_the_weights_need(
+        self, model_config: ModelConfig, weights_file: str
+    ):
+        # the same architecture now takes either CRF, so a chain CRF weights
+        # file can be pointed at a model that has nowhere to put it
+        model_config.use_chain_crf = False
+        model = CustomBidLSTM_CRF(model_config, NTAGS)
+        with pytest.raises(TfWeightConversionError) as exc_info:
+            load_keras_weights_into_model(weights_file, model)
+        assert 'use_chain_crf=True' in str(exc_info.value)

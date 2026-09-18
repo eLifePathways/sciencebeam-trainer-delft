@@ -1,10 +1,10 @@
 """Model architectures and the registry that builds them.
 
-Every model published from this repo is `CustomBidLSTM_CRF` with a features
-embedding size of 0, which feeds the raw feature matrix straight into the word
-LSTM. Upstream's `BidLSTM_CRF_FEATURES` embeds features through `nn.Embedding`
-and a features LSTM instead and has no size-0 path, so it cannot represent
-these models at any configuration.
+`CustomBidLSTM_CRF` accepts a features embedding size of 0, which feeds the
+feature matrix straight into the word LSTM, and it takes continuous feature
+values. Upstream's features architectures embed each feature value through
+`nn.Embedding` and a features LSTM, which has no size-0 path and cannot take a
+continuous value, so a model trained either way here is not loadable there.
 
 Layer and parameter names mirror the Keras implementation so that weights can
 be mapped across mechanically.
@@ -113,13 +113,15 @@ class CustomBidLSTM_CRF(nn.Module):  # pylint: disable=invalid-name
     """BiLSTM-CRF over word embeddings, character encodings and features.
 
     Features are passed through unchanged when `features_embedding_size` is 0,
-    which is what every published model does, and through a dense projection
-    otherwise.
+    and through a dense projection otherwise.
     """
 
     name = 'CustomBidLSTM_CRF'
     use_crf = True
+    # the default for a config that does not say; `supports_both_crf` lets the
+    # config override it, which is how a model trained either way reloads
     use_chain_crf = True
+    supports_both_crf = True
     supports_features = True
 
     def __init__(self, config: ModelConfig, ntags: int):
@@ -161,7 +163,16 @@ class CustomBidLSTM_CRF(nn.Module):  # pylint: disable=invalid-name
             config.num_word_lstm_units * 2, config.num_word_lstm_units
         )
         self.dense_ntags = nn.Linear(config.num_word_lstm_units, ntags)
-        self.crf = ChainCRF(ntags)
+        # the two are the same linear-chain CRF with differently named
+        # parameters, so this decides the state dict rather than the model:
+        # `crf.U`, `crf.b_start`, `crf.b_end` against the pytorch-crf module's
+        # `crf.crf.transitions`, `crf.crf.start_transitions`,
+        # `crf.crf.end_transitions`
+        self.use_chain_crf = config.use_chain_crf
+        self.crf = ChainCRF(ntags) if self.use_chain_crf else CRF(ntags)
+        LOGGER.info(
+            'using %s', 'ChainCRF' if self.use_chain_crf else 'CRF (pytorch-crf)'
+        )
 
     def get_word_lstm_input(self, inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
         lstm_inputs: List[torch.Tensor] = []
@@ -231,9 +242,9 @@ class CustomBidLSTM_CRF(nn.Module):  # pylint: disable=invalid-name
     def decode(self, inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
         with torch.no_grad():
             token_mask = self.get_token_mask(inputs)
-            return self.crf.decode(
-                self.get_logits(inputs, mask=token_mask), mask=token_mask
-            )
+            logits = self.get_logits(inputs, mask=token_mask)
+            decoded = self.crf.decode(logits, mask=token_mask)
+        return to_padded_tag_indices(decoded, sequence_length=logits.shape[1])
 
 
 class CustomBidLSTM_CRF_FEATURES(nn.Module):  # pylint: disable=invalid-name
@@ -243,8 +254,8 @@ class CustomBidLSTM_CRF_FEATURES(nn.Module):  # pylint: disable=invalid-name
     bidirectional LSTM reduces to one vector per token. Unlike
     `CustomBidLSTM_CRF` this uses the plain CRF, as the Keras model did.
 
-    Deprecated: `CustomBidLSTM_CRF` takes features too, and is what every
-    published model uses.
+    Deprecated: `CustomBidLSTM_CRF` takes features too, and takes them in
+    more ways.
     """
 
     name = 'CustomBidLSTM_CRF_FEATURES'
@@ -253,8 +264,8 @@ class CustomBidLSTM_CRF_FEATURES(nn.Module):  # pylint: disable=invalid-name
     supports_features = True
     require_features_indices_input = True
     deprecated_reason = (
-        'CustomBidLSTM_CRF supports features as well and is what every'
-        ' published model uses'
+        'CustomBidLSTM_CRF supports features as well, and supports more'
+        ' ways of representing them'
     )
 
     def __init__(self, config: ModelConfig, ntags: int):
@@ -392,12 +403,28 @@ def is_model_stateful(model: nn.Module) -> bool:
     return getattr(model, 'stateful', False)
 
 
+def to_padded_tag_indices(decoded, sequence_length: int) -> torch.Tensor:
+    """Returns `[batch, sequence_length]` tag indices, whichever CRF decoded them.
+
+    `ChainCRF` decodes to a tensor of the full width. The pytorch-crf based
+    `CRF` decodes to one list per sequence, and a masked decode truncates each
+    to its own length, so the padding is filled back in here: callers expect
+    one tag per position.
+    """
+    if isinstance(decoded, torch.Tensor):
+        return decoded
+    return torch.tensor([
+        list(tags) + [0] * (sequence_length - len(tags))
+        for tags in decoded
+    ], dtype=torch.long)
+
+
 def to_tag_indices_array(predictions) -> np.ndarray:
     """Returns one tag index per token, whichever CRF decoded them.
 
-    `ChainCRF` decodes to a tensor; the pytorch-crf based `CRF` upstream's
-    architectures use decodes to a list per sequence. Both are rectangular
-    here, since decoding is not given a mask.
+    The architectures here decode to a rectangular tensor, padding included
+    (see `to_padded_tag_indices`); upstream's return a list per sequence, which
+    is rectangular only because they are not given a mask.
     """
     if isinstance(predictions, torch.Tensor):
         return predictions.cpu().numpy()
@@ -413,8 +440,26 @@ def get_supports_features(model: nn.Module, architecture: str) -> bool:
     return architecture in IMPLICIT_MODEL_CONFIG_PROPS_MAP
 
 
+def warn_if_crf_choice_is_ignored(model: nn.Module, architecture: str, requested: bool):
+    """Says so when an architecture overrides the CRF the config asked for.
+
+    Most architectures commit to one CRF, so a config saying otherwise is not
+    honoured. That is the long-standing behaviour; saying it out loud is the
+    only change.
+    """
+    if getattr(model, 'supports_both_crf', False):
+        return
+    if requested == model.use_chain_crf:
+        return
+    LOGGER.warning(
+        'architecture %r decides its own CRF: use_chain_crf=%s, not %s',
+        architecture, model.use_chain_crf, requested
+    )
+
+
 def get_model(config: ModelConfig, preprocessor, ntags: Optional[int] = None):
     LOGGER.info('get_model, architecture=%s, ntags=%s', config.architecture, ntags)
+    requested_use_chain_crf = config.use_chain_crf
     model_class = MODEL_MAP.get(config.architecture)
     if model_class is not None:
         model = model_class(config, ntags)
@@ -427,7 +472,10 @@ def get_model(config: ModelConfig, preprocessor, ntags: Optional[int] = None):
             'architecture %r is deprecated: %s', config.architecture, deprecated_reason
         )
     # the data generator is configured from these, so an architecture built
-    # upstream has to go through them too
+    # upstream has to go through them too. An architecture that takes either
+    # CRF has already read the config, so reading it back keeps a deliberate
+    # choice rather than replacing it with the class default.
+    warn_if_crf_choice_is_ignored(model, config.architecture, requested_use_chain_crf)
     config.use_crf = model.use_crf
     config.use_chain_crf = model.use_chain_crf
     preprocessor.return_casing = getattr(model, 'require_casing', False)

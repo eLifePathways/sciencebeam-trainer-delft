@@ -22,7 +22,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 DELFT_MODELS_ARE_KERAS_REASON = (
-    'the published delft models are Keras hdf5 and there is no TensorFlow to'
+    'the delft models under test are Keras hdf5 and there is no TensorFlow to'
     ' load them with; spec 002 converts them to PyTorch and restores this case'
 )
 
@@ -66,6 +66,19 @@ class TestGrobidTrainer:
                 '--input', INPUT_PATH_2
             ])
             assert opt.input == [INPUT_PATH_1, INPUT_PATH_2]
+
+        def test_should_use_the_plain_crf_by_default(self):
+            # the chain CRF is what older models carry; a new model has no
+            # reason to prefer it, and the pytorch-crf one is the maintained path
+            # upstream
+            opt = parse_args(['header', 'train', '--input', INPUT_PATH_1])
+            assert opt.use_chain_crf is False
+
+        def test_should_allow_selecting_the_chain_crf(self):
+            opt = parse_args([
+                'header', 'train', '--input', INPUT_PATH_1, '--chain-crf'
+            ])
+            assert opt.use_chain_crf is True
 
         def test_should_mask_padded_tokens_by_default(self):
             # a new model should not depend on how its batches are composed;

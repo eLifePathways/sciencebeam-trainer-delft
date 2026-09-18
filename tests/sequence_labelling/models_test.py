@@ -26,7 +26,7 @@ from sciencebeam_trainer_delft.sequence_labelling.upstream_patches import (
 )
 
 
-# the published header model this repo's reference capture uses
+# the model shape this repo's reference capture holds
 NTAGS = 34
 REFERENCE_CONFIG = {
     'char_vocab_size': 288,
@@ -38,7 +38,10 @@ REFERENCE_CONFIG = {
     'dropout': 0.5,
     'use_features': True,
     'max_feature_size': 53,
-    'features_embedding_size': 0
+    'features_embedding_size': 0,
+    # a model trained before the CRF became configurable is ChainCRF, which is
+    # what the reference capture holds; a new model defaults the other way
+    'use_chain_crf': True
 }
 
 REFERENCE_CAPTURE_PATH = (
@@ -152,8 +155,53 @@ class TestCustomBidLSTMCRF:
         unmasked_loss = model(inputs, labels)['loss'].item()
         assert masked_loss != unmasked_loss
 
+    def test_should_use_the_chain_crf_when_the_config_asks_for_it(self):
+        model = CustomBidLSTM_CRF(_model_config(use_chain_crf=True), NTAGS)
+        assert isinstance(model.crf, ChainCRF)
+        # the parameter names a pre-migration model was saved with
+        assert {'crf.U', 'crf.b_start', 'crf.b_end'} <= set(model.state_dict())
+
+    def test_should_use_the_plain_crf_when_the_config_asks_for_it(self):
+        model = CustomBidLSTM_CRF(_model_config(use_chain_crf=False), NTAGS)
+        assert not isinstance(model.crf, ChainCRF)
+        assert {
+            'crf.crf.transitions',
+            'crf.crf.start_transitions',
+            'crf.crf.end_transitions'
+        } <= set(model.state_dict())
+
+    def test_should_score_the_same_either_way_given_the_same_parameters(self):
+        # the two are one linear-chain CRF under a parameter rename, which is
+        # what makes moving a new model to the pytorch-crf one free
+        chain_config = _model_config(dropout=0.0, use_chain_crf=True)
+        plain_config = _model_config(dropout=0.0, use_chain_crf=False)
+        chain_model = CustomBidLSTM_CRF(chain_config, NTAGS)
+        plain_model = CustomBidLSTM_CRF(plain_config, NTAGS)
+        plain_model.load_state_dict({
+            **{
+                name: value for name, value in chain_model.state_dict().items()
+                if not name.startswith('crf.')
+            },
+            'crf.crf.transitions': chain_model.crf.U.detach(),
+            'crf.crf.start_transitions': chain_model.crf.b_start.detach(),
+            'crf.crf.end_transitions': chain_model.crf.b_end.detach()
+        })
+        chain_model.eval()
+        plain_model.eval()
+        inputs, labels = _batch(chain_config)
+        with torch.no_grad():
+            chain_outputs = chain_model(inputs, labels)
+            plain_outputs = plain_model(inputs, labels)
+            chain_tags = torch.as_tensor(chain_model.decode(inputs))
+            plain_tags = torch.as_tensor(plain_model.decode(inputs))
+        assert torch.allclose(
+            chain_outputs['logits'], plain_outputs['logits'], atol=1e-6
+        )
+        assert torch.allclose(chain_outputs['loss'], plain_outputs['loss'], atol=1e-5)
+        assert torch.equal(chain_tags, plain_tags)
+
     def test_should_not_mask_padded_tokens_by_default(self):
-        # the published models were all trained unmasked, so a config without
+        # a model from before this option was trained unmasked, so a config
         # the key has to keep running over the padding
         assert _model_config().mask_padded_tokens is False
         model = CustomBidLSTM_CRF(_model_config(), NTAGS)
@@ -253,7 +301,7 @@ class TestCustomBidLSTMCRFBatchInvariance:
         assert torch.allclose(narrow, wide, atol=1e-6)
 
     def test_should_remain_padding_dependent_when_masking_is_disabled(self):
-        # guards the default: this is the behaviour the published models have
+        # guards the default: the behaviour a model from before this option has
         model_config = _model_config(
             dropout=0.0, char_vocab_size=12, max_char_length=5,
             mask_padded_tokens=False
@@ -331,6 +379,30 @@ class TestGetModel:
         get_model(model_config, MagicMock(name='preprocessor'), ntags=NTAGS)
         assert model_config.use_crf
         assert model_config.use_chain_crf
+
+    def test_should_keep_the_configured_crf_for_an_architecture_taking_either(self):
+        model_config = _model_config(use_chain_crf=False)
+        model = get_model(model_config, MagicMock(name='preprocessor'), ntags=NTAGS)
+        assert not model_config.use_chain_crf
+        assert not model.use_chain_crf
+
+    def test_should_warn_when_the_architecture_decides_its_own_crf(self, caplog):
+        model_config = _model_config(use_chain_crf=False)
+        # an upstream architecture, which commits to the chain CRF
+        model_config.architecture = 'BidLSTM_ChainCRF'
+        with caplog.at_level('WARNING'):
+            get_model(model_config, MagicMock(name='preprocessor'), ntags=NTAGS)
+        assert 'decides its own CRF' in caplog.text
+        assert model_config.use_chain_crf
+
+    def test_should_not_warn_for_an_architecture_taking_either_crf(self, caplog):
+        with caplog.at_level('WARNING'):
+            get_model(
+                _model_config(use_chain_crf=False),
+                MagicMock(name='preprocessor'),
+                ntags=NTAGS
+            )
+        assert 'decides its own CRF' not in caplog.text
 
     def test_should_tell_the_preprocessor_to_return_features(self):
         preprocessor = MagicMock(name='preprocessor')
@@ -471,7 +543,7 @@ class TestDeprecatedArchitecture:
     def test_should_declare_the_features_architecture_deprecated(self):
         assert CustomBidLSTM_CRF_FEATURES.deprecated_reason
 
-    def test_should_not_declare_the_published_architecture_deprecated(self):
+    def test_should_not_declare_the_current_architecture_deprecated(self):
         assert getattr(CustomBidLSTM_CRF, 'deprecated_reason', None) is None
 
     def test_should_warn_when_building_a_deprecated_architecture(self, caplog):
@@ -485,3 +557,59 @@ class TestDeprecatedArchitecture:
         with caplog.at_level('WARNING'):
             get_model(_model_config(), MagicMock(name='preprocessor'), ntags=NTAGS)
         assert 'deprecated' not in caplog.text
+
+
+class TestCustomBidLSTMCRFPlainCrfMasking:
+    """The plain CRF has to behave like the chain one under a mask.
+
+    Its decode returns one list per sequence, truncated to that sequence's own
+    length, so the padding has to be filled back in for the caller to get one
+    tag per position.
+    """
+
+    @pytest.mark.parametrize('padded_length', [REAL_LENGTH + 1, REAL_LENGTH + 4])
+    def test_should_decode_one_tag_per_position_including_the_padding(
+        self, padded_length: int
+    ):
+        model_config = _model_config(
+            dropout=0.0, char_vocab_size=12, max_char_length=5,
+            mask_padded_tokens=True, use_chain_crf=False
+        )
+        model = CustomBidLSTM_CRF(model_config, NTAGS)
+        model.eval()
+        inputs, _ = _padded_batch(model_config, padded_length)
+        decoded = torch.as_tensor(model.decode(inputs))
+        assert decoded.shape == (1, padded_length)
+
+    @pytest.mark.parametrize('padded_length', [REAL_LENGTH + 1, REAL_LENGTH + 4])
+    def test_should_decode_the_same_tags_whatever_the_padding(
+        self, padded_length: int
+    ):
+        model_config = _model_config(
+            dropout=0.0, char_vocab_size=12, max_char_length=5,
+            mask_padded_tokens=True, use_chain_crf=False
+        )
+        model = CustomBidLSTM_CRF(model_config, NTAGS)
+        model.eval()
+        unpadded_inputs, _ = _padded_batch(model_config, REAL_LENGTH)
+        padded_inputs, _ = _padded_batch(model_config, padded_length)
+        unpadded = torch.as_tensor(model.decode(unpadded_inputs))
+        padded = torch.as_tensor(model.decode(padded_inputs))[:, :REAL_LENGTH]
+        assert torch.equal(unpadded, padded)
+
+    @pytest.mark.parametrize('padded_length', [REAL_LENGTH + 1, REAL_LENGTH + 4])
+    def test_should_produce_the_same_loss_whatever_the_padding(
+        self, padded_length: int
+    ):
+        model_config = _model_config(
+            dropout=0.0, char_vocab_size=12, max_char_length=5,
+            mask_padded_tokens=True, use_chain_crf=False
+        )
+        model = CustomBidLSTM_CRF(model_config, NTAGS)
+        model.eval()
+        unpadded_inputs, unpadded_labels = _padded_batch(model_config, REAL_LENGTH)
+        padded_inputs, padded_labels = _padded_batch(model_config, padded_length)
+        with torch.no_grad():
+            unpadded = model(unpadded_inputs, unpadded_labels)['loss']
+            padded = model(padded_inputs, padded_labels)['loss']
+        assert torch.allclose(unpadded, padded, atol=1e-5)

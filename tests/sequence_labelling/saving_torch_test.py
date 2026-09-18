@@ -33,7 +33,10 @@ def _model_config() -> ModelConfig:
         dropout=0.0,
         use_features=True,
         max_feature_size=MAX_FEATURE_SIZE,
-        features_embedding_size=0
+        features_embedding_size=0,
+        # the TensorFlow era models are all chain CRF, so that is what their
+        # weights convert into
+        use_chain_crf=True
     )
 
 

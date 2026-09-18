@@ -497,6 +497,25 @@ def add_train_arguments(parser: argparse.ArgumentParser):
         help="mask PAD positions from the CRF loss (excludes padding from gradient)"
     )
     parser.add_argument(
+        "--chain-crf",
+        dest="use_chain_crf",
+        default=False,
+        action="store_true",
+        help=(
+            "Use the ported Keras ChainCRF rather than the pytorch-crf one."
+            " The two are the same linear-chain CRF and score identically; this"
+            " chooses which parameter names the model is saved with. Only"
+            " architectures that take either honour it"
+        )
+    )
+    parser.add_argument(
+        "--no-chain-crf",
+        dest="use_chain_crf",
+        default=False,
+        action="store_false",
+        help="Use the pytorch-crf CRF (default)"
+    )
+    parser.add_argument(
         "--mask-padded-tokens",
         dest="mask_padded_tokens",
         default=True,
@@ -514,7 +533,7 @@ def add_train_arguments(parser: argparse.ArgumentParser):
         action="store_false",
         help=(
             "Run over padded positions as well, reproducing the behaviour every"
-            " published model was trained with"
+            " model trained before this option existed was trained with"
         )
     )
     parser.add_argument(
