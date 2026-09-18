@@ -157,9 +157,11 @@ test_tag_using_existing_model:
     expected_tags:
       - tag: addrLine
         regex: '.{10,}'
+  # the 0.5.6 corpus stops one column short of the `is_superscript` this model
+  # reads as feature 25, so it is paired with the 0.8.2 one that carries it
   - id: fulltext_sciencebeam_parser_2021_05_11
     model_path: https://github.com/elifesciences/sciencebeam-models/releases/download/biorxiv-grobid/2021-05-11-delft-grobid-fulltext-biorxiv-10k-auto-v0.0.21-train-1986-e159.tar.gz
-    input_path: https://github.com/elifesciences/sciencebeam-datasets/releases/download/v0.0.1/delft-grobid-0.5.6-fulltext.train.gz
+    input_path: https://github.com/elifesciences/sciencebeam-datasets/releases/download/grobid-0.8.2/delft-grobid-0.8.2-fulltext.train.gz
     expected_tags:
       - tag: paragraph
         regex: '.{40,}'
@@ -167,9 +169,12 @@ test_tag_using_existing_model:
     model_path: https://github.com/elifesciences/sciencebeam-models/releases/download/biorxiv-grobid/2021-05-11-delft-grobid-figure-biorxiv-10k-auto-v0.0.18-train-1865-e219.tar.gz
     input_path: https://github.com/elifesciences/sciencebeam-datasets/releases/download/v0.0.1/delft-grobid-0.5.6-figure.train.gz
     expected_tags: []
+  # the 0.5.6 corpus mixes three column layouts, two of which have no alignment
+  # column, so the features 11 to 15 this model reads land on other columns;
+  # the 0.8.2 one carries alignment throughout
   - id: table_sciencebeam_parser_2021_05_11
     model_path: https://github.com/elifesciences/sciencebeam-models/releases/download/biorxiv-grobid/2021-05-11-delft-grobid-table-biorxiv-10k-auto-v0.0.18-train-1865-e569.tar.gz
-    input_path: https://github.com/elifesciences/sciencebeam-datasets/releases/download/v0.0.1/delft-grobid-0.5.6-table.train.gz
+    input_path: https://github.com/elifesciences/sciencebeam-datasets/releases/download/grobid-0.8.2/delft-grobid-0.8.2-table.train.gz
     expected_tags: []
   - id: reference_segmenter_sciencebeam_parser_2020_10_04
     model_path: https://github.com/elifesciences/sciencebeam-models/releases/download/v0.0.1/2020-10-04-delft-grobid-reference-segmenter-biorxiv-no-word-embedding.tar.gz
