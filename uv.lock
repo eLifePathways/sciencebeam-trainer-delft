@@ -655,7 +655,7 @@ wheels = [
 
 [[package]]
 name = "delft"
-version = "1.0.1"
+version = "1.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "accelerate" },
@@ -681,9 +681,9 @@ dependencies = [
     { name = "truecase" },
     { name = "unidecode" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e1/48/a609e68a2e8e02b1e1d975922f01d4706e59d81352d9e81f2ab3378801b4/delft-1.0.1.tar.gz", hash = "sha256:0eb0d71541875bea02b659503cc6f6842ff62862f39de06ba9c01532049432fe", size = 150021, upload-time = "2026-07-31T09:23:17.984Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ba/6c/ba60bf44bc5a04a8f07073f063311843f636b767b19139fa14239ea59985/delft-1.1.0.tar.gz", hash = "sha256:08866172703ccce429cc597ecfa66312d909d7a67dde9516216782a24d694c32", size = 165680, upload-time = "2026-08-28T07:19:33.307Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/62/fe/ae143daea543828a181b83037b8207ca2169f5b865ab3a6ca9e8e3b30d71/delft-1.0.1-py3-none-any.whl", hash = "sha256:9bc9b632da066d034e7dcc739aa4981905dba293fd34ffde2a27a634423064db", size = 180984, upload-time = "2026-07-31T09:23:16.564Z" },
+    { url = "https://files.pythonhosted.org/packages/a9/50/121b0e62758d697f2ccafcbe81a408dce06c59b3011f2947f57f824699ae/delft-1.1.0-py3-none-any.whl", hash = "sha256:5fe1b073831918da590e4fbb74d8a514c84f000c61028865846cade56d1d1695", size = 198455, upload-time = "2026-08-28T07:19:31.89Z" },
 ]
 
 [[package]]
@@ -2985,7 +2985,7 @@ gpu = [
 
 [package.metadata]
 requires-dist = [
-    { name = "delft", marker = "extra == 'delft'", specifier = ">=1.0.1" },
+    { name = "delft", marker = "extra == 'delft'", specifier = ">=1.1.0" },
     { name = "fsspec", specifier = ">=2025.12.0" },
     { name = "gcsfs", marker = "extra == 'gcs'", specifier = ">=2025.12.0" },
     { name = "h5py", marker = "extra == 'delft'", specifier = ">=3.16.0" },

@@ -25,7 +25,10 @@ gcs = [
     "gcsfs>=2025.12.0",
 ]
 delft = [
-    "delft>=1.0.1",
+    # 1.1.0 is a floor rather than a preference: the character and token masking
+    # of BidLSTM_CRF, and the ChainCRF that registers its transitions when it is
+    # constructed, are relied on here and were patched in at runtime before it
+    "delft>=1.1.0",
     "h5py>=3.16.0",
 ]
 

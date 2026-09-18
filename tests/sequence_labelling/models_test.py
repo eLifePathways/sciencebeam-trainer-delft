@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Any, Dict, Iterator
+from typing import Any, Dict
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -20,9 +20,6 @@ from sciencebeam_trainer_delft.sequence_labelling.models import (
     is_model_stateful,
     to_tag_indices_array,
     updated_implicit_model_config_props
-)
-from sciencebeam_trainer_delft.sequence_labelling.upstream_patches import (
-    patch_chain_crf_eager_build
 )
 
 
@@ -55,14 +52,6 @@ def _model_config(**kwargs) -> ModelConfig:
     # (num_word_lstm_units, not word_lstm_units) rather than its parameter names
     values: Dict[str, Any] = {**REFERENCE_CONFIG, **kwargs}
     return ModelConfig(architecture='CustomBidLSTM_CRF', **values)
-
-
-@pytest.fixture(name='patched_chain_crf', autouse=True)
-def _patched_chain_crf() -> Iterator[None]:
-    original_init = ChainCRF.__init__
-    patch_chain_crf_eager_build()
-    yield
-    ChainCRF.__init__ = original_init  # type: ignore[method-assign]
 
 
 def _batch(model_config: ModelConfig, batch_size: int = 2, sequence_length: int = 4):
