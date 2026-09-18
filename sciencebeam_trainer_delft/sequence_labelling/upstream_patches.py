@@ -10,7 +10,7 @@ Both defects here are reported upstream, with patches prepared against v1.1.0;
 see ``.project-notes/upstream/``.
 """
 import logging
-from typing import Optional, cast
+from typing import List, Optional, cast
 
 import torch
 
@@ -117,7 +117,10 @@ def patch_chain_crf_masked_free_energy():
 
 def _chain_crf_decode_from_last_real_position(
     self, emissions: torch.Tensor, mask: Optional[torch.Tensor] = None
-) -> torch.Tensor:
+) -> List[List[int]]:
+    """Returns what upstream's decode does: a list of tags for each sequence of
+    the batch, of the width of the batch, holding 0 where the mask leaves a
+    position out. DeLFT's tagger reads the tags as integers."""
     batch_size, sequence_length, _ = emissions.shape
     device = emissions.device
     x = self._add_boundary_energy(emissions, mask)  # pylint: disable=protected-access
@@ -165,7 +168,7 @@ def _chain_crf_decode_from_last_real_position(
 
     if mask is not None:
         best_paths = best_paths * mask.long()
-    return best_paths
+    return best_paths.tolist()
 
 
 def is_chain_crf_masked_decode_required() -> bool:

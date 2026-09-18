@@ -147,6 +147,19 @@ class TestPatchChainCrfMaskedDecode:
             )
         assert torch.as_tensor(padded)[:, 2:].tolist() == [[0]]
 
+    def test_should_decode_to_lists_of_the_batch_width_as_upstream_does(self):
+        # delft's tagger reads the tags as integers, one list per sequence
+        crf = _built_chain_crf()
+        emissions = _padded(REAL_EMISSIONS, PADDING_EMISSIONS)
+        mask = _padded(REAL_MASK, PADDING_MASK)
+        with torch.no_grad():
+            upstream = crf.decode(emissions, mask=mask)
+            patch_chain_crf_masked_decode()
+            patched = crf.decode(emissions, mask=mask)
+        assert isinstance(patched, list) and isinstance(patched[0], list)
+        assert all(isinstance(tag, int) for tag in patched[0])
+        assert [len(tags) for tags in patched] == [len(tags) for tags in upstream] == [3]
+
     def test_should_leave_the_unmasked_decode_unchanged(self):
         crf = _built_chain_crf()
         emissions = _padded(REAL_EMISSIONS, PADDING_EMISSIONS)
