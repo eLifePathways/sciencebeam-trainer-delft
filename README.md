@@ -503,13 +503,37 @@ token within it. By default those padded positions are skipped: the character
 encoder, the word LSTM and the CRF all run over the real positions only, so a
 document scores and decodes the same whatever it is batched with.
 
-Pass `--no-mask-padded-tokens` to run over the padding as well. That is what
-every model published before this option was added was trained with, and how
-such a model still loads: the flag is recorded in the model config, and a
-config without it keeps the unmasked behaviour rather than silently changing
-what the model does. Tagging with the deployed header model shows what is at
-stake: without masking, 1.2% of its tokens take a different label at batch size
-64 than at batch size 1.
+Pass `--no-mask-padded-tokens` to run over the padding as well. That is what a
+model trained before this option existed was trained with, and how such a model
+still loads: the flag is recorded in the model config, and a config without it
+keeps the unmasked behaviour rather than silently changing what the model does.
+What is at stake, measured on a header model: without masking, 1.2% of its
+tokens take a different label at batch size 64 than at batch size 1.
+
+### Which CRF
+
+`CustomBidLSTM_CRF` takes either of delft's two CRF layers, and the choice is
+recorded in the model config, so a model reloads with the one it was trained
+with. New models get the `pytorch-crf` one; pass `--chain-crf` for the ported
+Keras `ChainCRF`.
+
+The two are the same linear-chain CRF with differently named parameters —
+`U`, `b_start`, `b_end` against `transitions`, `start_transitions`,
+`end_transitions` — and given the same values they produce the same loss and
+the same tags. So the choice decides what the saved weights are called rather
+than what the model computes. `pytorch-crf` is the default because it is the
+path upstream tests against its reference implementation and has the faster
+single-sequence decode; `ChainCRF` decodes a batch faster, which shows up in
+evaluation rather than in serving.
+
+A model trained before this option existed uses `ChainCRF`, and its config has
+no such field, so loading it selects `ChainCRF` from the `use_crf` flag it does
+carry. The same applies to converting TensorFlow-era weights: those files hold
+`ChainCRF` parameters, so the model they are converted into has to be built
+with `--chain-crf`.
+
+Architectures that use one CRF only — every other one here, and all of
+upstream's — ignore the flag and log that they did.
 
 ### Training very long sequences
 

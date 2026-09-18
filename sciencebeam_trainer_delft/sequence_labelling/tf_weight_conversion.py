@@ -1,12 +1,12 @@
 """Maps TF-era Keras weights onto the torch modules that replaced them.
 
-Model directories published before the PyTorch migration hold a Keras
+Model directories written before the PyTorch migration hold a Keras
 ``model_weights.hdf5`` where the current code writes a torch state dict. Reading
 one needs ``h5py`` and nothing else -- no TensorFlow is involved, so this runs in
 the normal environment.
 
 The mapping is keyed on **role and shape, never on layer names**. Keras layer
-names are auto-generated in most published files (``time_distributed_1``,
+names are auto-generated in most such files (``time_distributed_1``,
 ``dense_2``, ``lstm_cell_5``) and only partly meaningful in the rest, so they
 differ between model generations that are otherwise identical. Roles come from
 the weight names *within* a layer, which the Keras layer classes set and which
@@ -288,9 +288,12 @@ def _add_crf_weights(
         for keras_name, torch_name in mapping.items():
             matching = [key for key in state_dict_keys if key.endswith('.' + torch_name)]
             if len(matching) != 1:
+                expected_crf = 'chain' if source.is_chain_crf else 'plain'
                 raise TfWeightConversionError(
                     f'expected exactly one destination ending in {torch_name!r}'
-                    f' for {source!r}, found {matching}'
+                    f' for {source!r}, found {matching}.'
+                    f' The weights are a {expected_crf} CRF, so the model has to'
+                    f' be built with use_chain_crf={source.is_chain_crf}'
                 )
             state[matching[0]] = torch.tensor(source.weights[keras_name].copy())
 
