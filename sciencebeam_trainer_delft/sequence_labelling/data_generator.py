@@ -14,6 +14,7 @@ from delft.sequenceLabelling.preprocess import (
 )
 from delft.utilities.Tokenizer import tokenizeAndFilterSimple
 
+from sciencebeam_trainer_delft.sequence_labelling.preprocess import FeaturesPreprocessor
 from sciencebeam_trainer_delft.utils.typing import T
 from sciencebeam_trainer_delft.utils.numpy import shuffle_arrays
 
@@ -23,9 +24,11 @@ LOGGER = logging.getLogger(__name__)
 NBSP = '\u00A0'
 
 
-def left_pad_batch_values(batch_values: np.ndarray, max_sequence_length: int, dtype=None):
+def left_pad_batch_values(
+    batch_values: Union[list, np.ndarray], max_sequence_length: int, dtype=None
+):
     if dtype is None:
-        dtype = batch_values.dtype
+        dtype = np.asarray(batch_values).dtype
     batch_size = len(batch_values)
     value_dimension = 0
     for batch_value in batch_values:
@@ -116,7 +119,7 @@ def get_chunk_at_offset(sequence: list, offset: int, max_sequence_length: Option
 
 
 def take_with_offset(
-    sequences: list,
+    sequences: Union[list, np.ndarray],
     indices_and_offset: List[Tuple[int, int]],
     max_sequence_length: Optional[int] = None
 ) -> list:
@@ -333,6 +336,20 @@ def get_concatenated_embeddings_token_count(
     )
 
 
+def is_cacheable_features_preprocessor(preprocessor) -> bool:
+    """Reports whether a sequence's transformed features are a value of its own.
+
+    This repo's `FeaturesPreprocessor` transforms each sequence independently and
+    returns it unpadded, so one sequence's matrix can be sliced to whatever
+    window and length a batch asks for. Upstream's pads to the batch maximum, so
+    what it returns for a sequence depends on the batch it arrived in and cannot
+    be held per sequence.
+    """
+    return isinstance(
+        getattr(preprocessor, 'feature_preprocessor', None), FeaturesPreprocessor
+    )
+
+
 # generate batch of data to feed sequence labelling model, both for training and prediction
 class DataGenerator:
     """Produces one batch of model inputs per index.
@@ -362,7 +379,8 @@ class DataGenerator:
         concatenated_embeddings_token_count: Optional[int] = None,
         is_deprecated_padded_batch_text_list_enabled: bool = False,
         name: Optional[str] = None,
-        use_chain_crf: bool = False
+        use_chain_crf: bool = False,
+        cache_transformed_features: bool = True
     ):
         'Initialization'
         if use_word_embeddings is None:
@@ -401,6 +419,16 @@ class DataGenerator:
         self.window_indices_and_offset = None
         self.name = name
         self.use_chain_crf = use_chain_crf
+        # holds each sequence's transformed features, filled on first use;
+        # created before the first shuffle so it is permuted with the rest
+        self.transformed_features: Optional[np.ndarray] = None
+        if (
+            cache_transformed_features
+            and preprocessor.return_features
+            and is_cacheable_features_preprocessor(preprocessor)
+        ):
+            assert self.features is not None
+            self.transformed_features = np.empty(len(self.features), dtype=object)
         if self.shuffle:
             # do we need to shuffle here?, the input was already shuffled
             self._shuffle_dataset()
@@ -451,6 +479,10 @@ class DataGenerator:
             arrays_to_shuffle.append(self.y)
         if self.features is not None:
             arrays_to_shuffle.append(self.features)
+        if self.transformed_features is not None:
+            # this branch permutes the data itself, so anything addressed by
+            # position has to move with it or it would describe another sequence
+            arrays_to_shuffle.append(self.transformed_features)
         shuffle_arrays(arrays_to_shuffle)
 
     def get_sequence_lengths(self) -> List[int]:
@@ -557,6 +589,65 @@ class DataGenerator:
         if not self.is_deprecated_padded_batch_text_list_enabled:
             return batch_text_list
         return get_token_padded_batch_text_list(batch_text_list)
+
+    def _transform_features_uncached(
+        self, sub_f: Optional[list], extend: bool
+    ) -> np.ndarray:
+        try:
+            return self.preprocessor.transform_features(sub_f, extend=extend)
+        except TypeError:
+            return self.preprocessor.transform_features(sub_f)
+
+    def _fill_transformed_features(
+        self, window_indices_and_offsets: List[Tuple[int, int]]
+    ) -> None:
+        """Transforms the sequences of this batch that are not held yet.
+
+        The uncached ones go through in one call rather than one call each, so
+        the first epoch pays no more than it does without the cache.
+        """
+        assert self.transformed_features is not None
+        assert self.features is not None
+        missing_indices = sorted({
+            index
+            for index, _ in window_indices_and_offsets
+            if self.transformed_features[index] is None
+        })
+        if not missing_indices:
+            return
+        transformed = self.preprocessor.transform_features(
+            [self.features[index] for index in missing_indices]
+        )
+        for index, sequence_features in zip(missing_indices, transformed):
+            # `left_pad_batch_values` casts to float32 anyway, so holding it as
+            # float32 halves the memory and leaves the batch unchanged
+            self.transformed_features[index] = np.asarray(
+                sequence_features, dtype=np.float32
+            )
+
+    def get_batch_transformed_features(
+        self,
+        window_indices_and_offsets: List[Tuple[int, int]],
+        sub_f: Optional[list],
+        max_length_x: int,
+        extend: bool
+    ) -> Union[list, np.ndarray]:
+        """Returns this batch's transformed features, from the cache where it can.
+
+        Every step of the transform is per token, so truncating a sequence and
+        transforming it gives what transforming and then truncating does. That
+        is what lets a window be sliced out of a cached sequence.
+        """
+        if self.transformed_features is None or extend:
+            # `extend` appends a padding row, which is a property of the batch
+            # rather than of the sequence, so the cache cannot answer for it
+            return self._transform_features_uncached(sub_f, extend)
+        self._fill_transformed_features(window_indices_and_offsets)
+        return take_with_offset(
+            self.transformed_features,
+            window_indices_and_offsets,
+            max_sequence_length=max_length_x
+        )
 
     def get_window_batch_data(  # pylint: disable=too-many-statements
             self,
@@ -673,19 +764,16 @@ class DataGenerator:
             inputs.append(batch_a)
         if self.preprocessor.return_features:
             LOGGER.debug('extend: %s', extend)
-            try:
-                batch_features = self.preprocessor.transform_features(sub_f, extend=extend)
-                batch_features = left_pad_batch_values(
-                    batch_features,
+            batch_features = left_pad_batch_values(
+                self.get_batch_transformed_features(
+                    window_indices_and_offsets,
+                    sub_f,
                     max_length_x,
-                    dtype=np.float32
-                )
-            except TypeError:
-                batch_features = left_pad_batch_values(
-                    self.preprocessor.transform_features(sub_f),
-                    max_length_x,
-                    dtype=np.float32
-                )
+                    extend=extend
+                ),
+                max_length_x,
+                dtype=np.float32
+            )
             LOGGER.debug(
                 'batch_features: shape=%s (dtype=%s)',
                 batch_features.shape,
