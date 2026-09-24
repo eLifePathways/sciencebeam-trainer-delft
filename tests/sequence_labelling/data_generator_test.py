@@ -7,6 +7,13 @@ import pytest
 import numpy as np
 
 from delft.sequenceLabelling.preprocess import to_casing_single, PAD
+from delft.utilities.preprocess import FeaturesPreprocessor as DelftFeaturesPreprocessor
+
+from sciencebeam_trainer_delft.sequence_labelling.preprocess import (
+    FeaturesPreprocessor,
+    Preprocessor,
+    faster_preprocessor_fit
+)
 
 from sciencebeam_trainer_delft.sequence_labelling.data_generator import (
     left_pad_batch_values,
@@ -787,3 +794,132 @@ class TestDataGenerator:
             **DEFAULT_ARGS
         )
         data_generator._shuffle_dataset()  # pylint: disable=protected-access
+
+
+CACHE_WORDS = [WORD_1, WORD_2, WORD_3, WORD_4]
+CACHE_FEATURE_VALUES = ['f-a', 'f-b', 'f-c']
+CACHE_LABELS = [LABEL_1, LABEL_2, LABEL_3]
+
+
+def _cache_test_dataset(sequence_count: int = 12):
+    """Builds sequences of differing length, so batches differ in padding."""
+    x, y, features = [], [], []
+    for sequence_index in range(sequence_count):
+        length = 2 + (sequence_index % 5)
+        x.append([CACHE_WORDS[i % len(CACHE_WORDS)] for i in range(length)])
+        y.append([CACHE_LABELS[i % len(CACHE_LABELS)] for i in range(length)])
+        features.append([
+            [
+                CACHE_FEATURE_VALUES[(sequence_index + i) % len(CACHE_FEATURE_VALUES)],
+                CACHE_FEATURE_VALUES[i % len(CACHE_FEATURE_VALUES)]
+            ]
+            for i in range(length)
+        ])
+    return (
+        np.asarray(x, dtype=object),
+        np.asarray(y, dtype=object),
+        np.asarray(features, dtype=object)
+    )
+
+
+def _cache_test_preprocessor(x, y, features):
+    feature_preprocessor = FeaturesPreprocessor(features_indices=[0, 1])
+    feature_preprocessor.fit(features)
+    preprocessor = Preprocessor(
+        return_casing=False,
+        return_features=True,
+        feature_preprocessor=feature_preprocessor
+    )
+    faster_preprocessor_fit(preprocessor, x, y)
+    return preprocessor
+
+
+def _get_batches_of_run(
+    cache_transformed_features: bool,
+    epochs: int = 3,
+    seed: int = 42,
+    **kwargs
+) -> List[list]:
+    """Runs one generator to completion on its own RNG stream.
+
+    The shuffling draws from the global numpy RNG, so two generators stepped
+    alternately would not see the same ordering. Each run is seeded and finished
+    before the next one starts.
+    """
+    x, y, features = _cache_test_dataset()
+    preprocessor = _cache_test_preprocessor(x, y, features)
+    np.random.seed(seed)
+    data_generator = DataGenerator(
+        x, y,
+        preprocessor=preprocessor,
+        features=features,
+        batch_size=4,
+        tokenize=False,
+        shuffle=True,
+        cache_transformed_features=cache_transformed_features,
+        **kwargs
+    )
+    assert (data_generator.transformed_features is not None) == cache_transformed_features
+    batches = []
+    batch_indices = list(range(len(data_generator)))
+    for _ in range(epochs):
+        for batch_index in batch_indices:
+            inputs, labels = data_generator[batch_index]
+            batches.append(
+                [np.asarray(value).tolist() for value in inputs]
+                + [np.asarray(labels).tolist()]
+            )
+        data_generator.on_epoch_end()
+    return batches
+
+
+class TestDataGeneratorTransformedFeaturesCache:
+    def test_should_produce_the_same_batches_when_shuffling_window_indices(self):
+        # with a window stride the shuffle permutes (index, offset) tuples,
+        # which carry their own identity
+        kwargs = dict(input_window_stride=2, max_sequence_length=3, stateful=False)
+        assert (
+            _get_batches_of_run(True, **kwargs) == _get_batches_of_run(False, **kwargs)
+        )
+
+    def test_should_produce_the_same_batches_when_shuffling_arrays_in_place(self):
+        # without a window stride the shuffle permutes x, y and features
+        # themselves, so a cache addressed by position has to move with them;
+        # if it does not, this passes on the first epoch and fails after
+        assert _get_batches_of_run(True) == _get_batches_of_run(False)
+
+    def test_should_fill_the_cache_lazily(self):
+        x, y, features = _cache_test_dataset()
+        preprocessor = _cache_test_preprocessor(x, y, features)
+        data_generator = DataGenerator(
+            x, y,
+            preprocessor=preprocessor,
+            features=features,
+            batch_size=4,
+            tokenize=False,
+            shuffle=False
+        )
+        transformed_features = data_generator.transformed_features
+        assert transformed_features is not None
+        assert all(value is None for value in transformed_features)
+        assert data_generator[0]
+        assert sum(value is not None for value in transformed_features) == 4
+        assert transformed_features[0].dtype == np.float32
+
+    def test_should_not_cache_for_upstream_features_preprocessor(self):
+        x, y, features = _cache_test_dataset()
+        preprocessor = _cache_test_preprocessor(x, y, features)
+        # upstream's preprocessor pads to the batch maximum, so what it returns
+        # for a sequence is not a value that sequence owns
+        upstream_features_preprocessor = DelftFeaturesPreprocessor(features_indices=[0, 1])
+        upstream_features_preprocessor.fit(features)
+        preprocessor.feature_preprocessor = upstream_features_preprocessor
+        data_generator = DataGenerator(
+            x, y,
+            preprocessor=preprocessor,
+            features=features,
+            batch_size=4,
+            tokenize=False,
+            shuffle=False
+        )
+        assert data_generator.transformed_features is None
