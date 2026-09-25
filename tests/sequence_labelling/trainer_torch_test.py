@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 import time
 from typing import Dict, List, Optional, Tuple
@@ -276,6 +277,15 @@ def test_should_expose_no_optional_typing_leaks():
     assert EarlyStopping(patience=1, initial_meta=optional_meta).best is None
 
 
+class _SlowLoader(list):
+    """A loader whose batches take real time to arrive, as a real one's do."""
+
+    def __iter__(self):
+        for batch in list.__iter__(self):
+            time.sleep(0.03)
+            yield batch
+
+
 def _timing_lines(caplog) -> List[str]:
     return [
         record.getMessage()
@@ -290,6 +300,12 @@ def _phase_seconds(line: str, phase: str) -> float:
     return float(match.group(1))
 
 
+def _phase_cores(line: str, phase: str) -> Optional[float]:
+    """Returns the phase's core count, or None where it is too short to report."""
+    match = re.search(r'%s=[\d.]+s \(([\d.]+) cores\)' % phase, line)
+    return float(match.group(1)) if match else None
+
+
 class TestTrainerPhaseTiming:
     def test_should_charge_the_time_to_reach_a_batch_to_the_batch_phase(self):
         delay = 0.02
@@ -302,8 +318,8 @@ class TestTrainerPhaseTiming:
 
         trainer = Trainer(_model(), _training_config())
         result = trainer.train_epoch(_slow_batches())
-        assert result.data_seconds >= len(batches) * delay
-        assert result.step_seconds > 0
+        assert result.batch.seconds >= len(batches) * delay
+        assert result.step.seconds > 0
 
     def test_should_still_return_the_mean_loss(self):
         trainer = Trainer(_model(), _training_config())
@@ -336,6 +352,34 @@ class TestTrainerPhaseTiming:
         with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
             trainer.train(_batches())
         assert _phase_seconds(_timing_lines(caplog)[0], 'checkpoint') == 0
+
+    def test_should_report_the_cores_of_each_phase_of_a_real_epoch(self, caplog):
+        # the sleeps make the phases long enough to measure without depending
+        # on how fast this machine trains a toy model
+        trainer = Trainer(
+            _model(), _training_config(max_epoch=1),
+            scorer=lambda _: time.sleep(0.05) or 0.5
+        )
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_SlowLoader(_batches()))
+        line = _timing_lines(caplog)[0]
+        for phase in ('total', 'batch', 'evaluate'):
+            cores = _phase_cores(line, phase)
+            assert cores is not None, 'no cores for %s in %r' % (phase, line)
+            assert 0 <= cores <= os.cpu_count()
+        # nothing is asserted about one phase against another: the CPU side is
+        # the whole process, so a phase that only waits is still credited with
+        # whatever else is running, and torch's pools spin between operations
+
+    def test_should_log_the_peak_memory_once_the_run_ends(self, caplog):
+        trainer = Trainer(_model(), _training_config(max_epoch=2))
+        with caplog.at_level(logging.INFO):
+            trainer.train(_batches())
+        peak_lines = [
+            record.getMessage() for record in caplog.records
+            if 'peak memory:' in record.getMessage()
+        ]
+        assert len(peak_lines) == 1
 
     def test_should_charge_scoring_to_the_evaluate_phase(self, caplog):
         delay = 0.05

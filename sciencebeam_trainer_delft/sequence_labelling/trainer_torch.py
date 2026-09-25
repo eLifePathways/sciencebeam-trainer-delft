@@ -10,7 +10,6 @@ written before and after the migration stays readable by `--auto-resume`.
 """
 import logging
 import os
-import time
 from typing import Callable, Dict, NamedTuple, Optional, Protocol
 
 import numpy as np
@@ -32,6 +31,10 @@ from sciencebeam_trainer_delft.sequence_labelling.typing import (
     T_Batch_Token_Array
 )
 from sciencebeam_trainer_delft.utils.numpy import concatenate_or_none
+from sciencebeam_trainer_delft.utils.resource_usage import (
+    PhaseTimer,
+    log_peak_memory_usage
+)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -123,14 +126,16 @@ class EarlyStopping:
 class TrainEpochResult(NamedTuple):
     """One epoch's loss, and where the training loop's time went.
 
-    `data_seconds` and `step_seconds` partition the loop: the generator is
-    synchronous, so whatever is not the step is the cost of building the batch
-    and moving it to the device.
+    `batch` and `step` partition the loop: the generator is synchronous, so
+    whatever is not the step is the cost of building the batch and moving it to
+    the device. They are reported separately because they parallelise very
+    differently -- building a batch is GIL-bound Python on one core, while the
+    step is torch across many -- so an average over both describes neither.
     """
 
     loss: float
-    data_seconds: float
-    step_seconds: float
+    batch: PhaseTimer
+    step: PhaseTimer
 
 
 class Trainer:
@@ -213,34 +218,35 @@ class Trainer:
         self.model.train()
         total_loss = 0.0
         batch_count = 0
-        data_seconds = 0.0
-        step_seconds = 0.0
-        batch_start = time.perf_counter()
+        batch_timer = PhaseTimer('batch')
+        step_timer = PhaseTimer('step')
+        # the generator is synchronous, so everything outside the step below,
+        # including the final call that ends the loop, is what building the
+        # batches and moving them to the device cost
+        batch_timer.start()
         for inputs, labels in data_loader:
-            # the generator is synchronous, so the time to arrive here is what
-            # building this batch and moving it to the device cost
-            data_seconds += time.perf_counter() - batch_start
-            step_start = time.perf_counter()
-            self.optimizer.zero_grad()
-            loss = self.model(inputs, labels)['loss']
-            loss.backward()
-            if self.training_config.clip_gradients:
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.training_config.clip_gradients
-                )
-            self.optimizer.step()
-            if self.scheduler is not None:
-                self.scheduler.step()
-            # `.item()` waits for the device, so this covers the step rather
-            # than just the time to queue it
-            total_loss += loss.item()
-            step_seconds += time.perf_counter() - step_start
+            batch_timer.stop()
+            with step_timer:
+                self.optimizer.zero_grad()
+                loss = self.model(inputs, labels)['loss']
+                loss.backward()
+                if self.training_config.clip_gradients:
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(), self.training_config.clip_gradients
+                    )
+                self.optimizer.step()
+                if self.scheduler is not None:
+                    self.scheduler.step()
+                # `.item()` waits for the device, so the step covers the work
+                # rather than just the time to queue it
+                total_loss += loss.item()
             batch_count += 1
-            batch_start = time.perf_counter()
+            batch_timer.start()
+        batch_timer.stop()
         return TrainEpochResult(
             loss=total_loss / max(batch_count, 1),
-            data_seconds=data_seconds,
-            step_seconds=step_seconds
+            batch=batch_timer,
+            step=step_timer
         )
 
     def train(self, data_loader) -> Dict[str, float]:
@@ -249,13 +255,13 @@ class Trainer:
         self.scheduler = self.create_scheduler(steps_per_epoch=len(data_loader))
         history: Dict[str, float] = {}
         for epoch in range(initial_epoch, max_epoch):
-            epoch_start = time.perf_counter()
+            epoch_timer = PhaseTimer('total').start()
             train_result = self.train_epoch(data_loader)
             loss = train_result.loss
             history[f'epoch_{epoch}_loss'] = loss
-            evaluate_start = time.perf_counter()
-            score = self.scorer(self.model) if self.scorer is not None else None
-            evaluate_seconds = time.perf_counter() - evaluate_start
+            evaluate_timer = PhaseTimer('evaluate')
+            with evaluate_timer:
+                score = self.scorer(self.model) if self.scorer is not None else None
             LOGGER.info('epoch %d: loss=%.4f score=%s', epoch, loss, score)
             # record the score before checkpointing, so that the meta a resume
             # reads includes this epoch rather than the state before it
@@ -264,30 +270,31 @@ class Trainer:
                 and self.training_config.early_stop
                 and self.early_stopping(score, epoch)
             )
-            checkpoint_start = time.perf_counter()
-            if self.should_save_checkpoint(epoch):
-                assert self.save_checkpoint is not None
-                self.save_checkpoint(
-                    epoch=epoch,
-                    meta=self.get_meta(epoch, loss=loss, score=score)
-                )
-            checkpoint_seconds = time.perf_counter() - checkpoint_start
+            checkpoint_timer = PhaseTimer('checkpoint')
+            with checkpoint_timer:
+                if self.should_save_checkpoint(epoch):
+                    assert self.save_checkpoint is not None
+                    self.save_checkpoint(
+                        epoch=epoch,
+                        meta=self.get_meta(epoch, loss=loss, score=score)
+                    )
+            epoch_timer.stop()
             # a separate line from the one above, which is left as it is because
-            # it is what earlier runs are timed from
+            # it is what earlier runs are timed from. Each phase reports its own
+            # core count, because they parallelise differently and a figure
+            # averaged over the epoch would describe none of them.
             LOGGER.info(
-                ' '.join([
-                    'epoch %d timing: total=%.2fs batch=%.2fs step=%.2fs',
-                    'evaluate=%.2fs checkpoint=%.2fs'
-                ]),
+                'epoch %d timing: %s, %s, %s, %s, %s',
                 epoch,
-                time.perf_counter() - epoch_start,
-                train_result.data_seconds,
-                train_result.step_seconds,
-                evaluate_seconds,
-                checkpoint_seconds
+                epoch_timer,
+                train_result.batch,
+                train_result.step,
+                evaluate_timer,
+                checkpoint_timer
             )
             if should_stop:
                 break
+        log_peak_memory_usage()
         return history
 
 
