@@ -10,7 +10,7 @@ written before and after the migration stays readable by `--auto-resume`.
 """
 import logging
 import os
-from typing import Callable, Dict, NamedTuple, Optional, Protocol
+from typing import Callable, Dict, List, NamedTuple, Optional, Protocol
 
 import numpy as np
 import torch
@@ -33,6 +33,7 @@ from sciencebeam_trainer_delft.sequence_labelling.typing import (
 from sciencebeam_trainer_delft.utils.numpy import concatenate_or_none
 from sciencebeam_trainer_delft.utils.resource_usage import (
     PhaseTimer,
+    is_step_timing_enabled,
     log_peak_memory_usage
 )
 
@@ -136,6 +137,7 @@ class TrainEpochResult(NamedTuple):
     loss: float
     batch: PhaseTimer
     step: PhaseTimer
+    step_parts: List[PhaseTimer]
 
 
 class Trainer:
@@ -220,6 +222,13 @@ class Trainer:
         batch_count = 0
         batch_timer = PhaseTimer('batch')
         step_timer = PhaseTimer('step')
+        detailed = is_step_timing_enabled()
+        forward_timer = PhaseTimer('forward', enabled=detailed, synchronize=True)
+        backward_timer = PhaseTimer('backward', enabled=detailed, synchronize=True)
+        optimizer_timer = PhaseTimer('optimizer', enabled=detailed, synchronize=True)
+        model_timers = getattr(self.model, 'step_timers', {})
+        for timer in model_timers.values():
+            timer.reset()
         # the generator is synchronous, so everything outside the step below,
         # including the final call that ends the loop, is what building the
         # batches and moving them to the device cost
@@ -228,15 +237,18 @@ class Trainer:
             batch_timer.stop()
             with step_timer:
                 self.optimizer.zero_grad()
-                loss = self.model(inputs, labels)['loss']
-                loss.backward()
-                if self.training_config.clip_gradients:
-                    torch.nn.utils.clip_grad_norm_(
-                        self.model.parameters(), self.training_config.clip_gradients
-                    )
-                self.optimizer.step()
-                if self.scheduler is not None:
-                    self.scheduler.step()
+                with forward_timer:
+                    loss = self.model(inputs, labels)['loss']
+                with backward_timer:
+                    loss.backward()
+                with optimizer_timer:
+                    if self.training_config.clip_gradients:
+                        torch.nn.utils.clip_grad_norm_(
+                            self.model.parameters(), self.training_config.clip_gradients
+                        )
+                    self.optimizer.step()
+                    if self.scheduler is not None:
+                        self.scheduler.step()
                 # `.item()` waits for the device, so the step covers the work
                 # rather than just the time to queue it
                 total_loss += loss.item()
@@ -246,7 +258,12 @@ class Trainer:
         return TrainEpochResult(
             loss=total_loss / max(batch_count, 1),
             batch=batch_timer,
-            step=step_timer
+            step=step_timer,
+            step_parts=(
+                [forward_timer, backward_timer, optimizer_timer]
+                + list(model_timers.values())
+                if detailed else []
+            )
         )
 
     def train(self, data_loader) -> Dict[str, float]:
@@ -292,6 +309,12 @@ class Trainer:
                 evaluate_timer,
                 checkpoint_timer
             )
+            if train_result.step_parts:
+                LOGGER.info(
+                    'epoch %d step: %s',
+                    epoch,
+                    ', '.join(str(part) for part in train_result.step_parts)
+                )
             if should_stop:
                 break
         log_peak_memory_usage()

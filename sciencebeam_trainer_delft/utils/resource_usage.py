@@ -4,11 +4,14 @@ Separate from `device`, which reports which device a run got rather than what it
 did with it.
 """
 import logging
+import os
 import resource
 import time
 from typing import Optional
 
 import torch
+
+from sciencebeam_trainer_delft.utils.misc import str_to_bool
 
 
 LOGGER = logging.getLogger(__name__)
@@ -19,6 +22,11 @@ KB_PER_MB = 1024
 # below this the kernel's CPU accounting is too coarse for the ratio to mean
 # anything, and dividing two near-zero numbers reports hundreds of cores
 MIN_MEASURABLE_SECONDS = 0.01
+
+# splitting a step into its parts means waiting for the device at each boundary,
+# which serialises work that would otherwise overlap, so it is asked for rather
+# than always on
+SCIENCEBEAM_DELFT_STEP_TIMING = 'SCIENCEBEAM_DELFT_STEP_TIMING'
 
 
 def get_cpu_seconds() -> float:
@@ -83,8 +91,14 @@ class PhaseTimer:
     operations, which lifts the count of a phase that does not itself use them.
     """
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, enabled: bool = True, synchronize: bool = False):
         self.name = name
+        # a timer that is switched off costs an attribute check per span, so a
+        # caller can time unconditionally without branching around it
+        self.enabled = enabled
+        # wait for the device before reading the clock, where a phase boundary
+        # would otherwise fall before the work it is meant to cover
+        self.synchronize = synchronize
         self.seconds = 0.0
         self.cpu_seconds = 0.0
         self._wall_start: Optional[float] = None
@@ -97,14 +111,27 @@ class PhaseTimer:
             return 0.0
         return self.cpu_seconds / self.seconds
 
+    def reset(self) -> 'PhaseTimer':
+        self.seconds = 0.0
+        self.cpu_seconds = 0.0
+        return self
+
     def start(self) -> 'PhaseTimer':
+        if not self.enabled:
+            return self
+        if self.synchronize:
+            synchronize_device()
         self._wall_start = time.perf_counter()
         self._cpu_start = get_cpu_seconds()
         return self
 
     def stop(self) -> 'PhaseTimer':
+        if not self.enabled:
+            return self
         assert self._wall_start is not None, 'stop() without start()'
         assert self._cpu_start is not None
+        if self.synchronize:
+            synchronize_device()
         self.seconds += time.perf_counter() - self._wall_start
         self.cpu_seconds += get_cpu_seconds() - self._cpu_start
         self._wall_start = None
@@ -121,3 +148,21 @@ class PhaseTimer:
         if self.seconds < MIN_MEASURABLE_SECONDS:
             return '%s=%.2fs' % (self.name, self.seconds)
         return '%s=%.2fs (%.1f cores)' % (self.name, self.seconds, self.cores)
+
+
+def is_step_timing_enabled() -> bool:
+    """Reports whether the training step should be timed part by part."""
+    return bool(str_to_bool(
+        os.environ.get(SCIENCEBEAM_DELFT_STEP_TIMING, ''), default_value=False
+    ))
+
+
+def synchronize_device() -> None:
+    """Waits for the device, so that a phase boundary means what it says.
+
+    Device work is queued rather than run, so without this a phase ends when its
+    kernels were submitted and the time they take is charged to whichever phase
+    happens to wait for them.
+    """
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()

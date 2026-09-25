@@ -24,6 +24,10 @@ from delft.sequenceLabelling.models import (
 from delft.utilities.crf_pytorch import CRF, ChainCRF
 
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig
+from sciencebeam_trainer_delft.utils.resource_usage import (
+    PhaseTimer,
+    is_step_timing_enabled
+)
 from sciencebeam_trainer_delft.sequence_labelling.masking import (
     get_mask_for_char_input,
     run_masked_final_state_lstm,
@@ -95,6 +99,20 @@ class CharacterEncoder(nn.Module):
         return encoded.view(batch_size, sequence_length, self.output_size)
 
 
+def get_step_timers() -> Dict[str, PhaseTimer]:
+    """Returns the timers for the parts of a forward pass.
+
+    Switched off unless asked for, because separating them means waiting for the
+    device at each boundary. A timer that is off costs an attribute check, so
+    the model times unconditionally rather than branching around it.
+    """
+    enabled = is_step_timing_enabled()
+    return {
+        name: PhaseTimer(name, enabled=enabled, synchronize=True)
+        for name in ('logits', 'crf')
+    }
+
+
 class CustomBidLSTM_CRF(nn.Module):  # pylint: disable=invalid-name
     """BiLSTM-CRF over word embeddings, character encodings and features.
 
@@ -156,6 +174,7 @@ class CustomBidLSTM_CRF(nn.Module):  # pylint: disable=invalid-name
         # `crf.crf.end_transitions`
         self.use_chain_crf = config.use_chain_crf
         self.crf = ChainCRF(ntags) if self.use_chain_crf else CRF(ntags)
+        self.step_timers = get_step_timers()
         LOGGER.info(
             'using %s', 'ChainCRF' if self.use_chain_crf else 'CRF (pytorch-crf)'
         )
@@ -217,12 +236,14 @@ class CustomBidLSTM_CRF(nn.Module):  # pylint: disable=invalid-name
         labels: Optional[torch.Tensor] = None
     ) -> Dict[str, torch.Tensor]:
         token_mask = self.get_token_mask(inputs)
-        logits = self.get_logits(inputs, mask=token_mask)
+        with self.step_timers['logits']:
+            logits = self.get_logits(inputs, mask=token_mask)
         outputs = {'logits': logits}
         if labels is not None:
-            outputs['loss'] = self.crf(
-                logits, labels, mask=self.get_crf_mask(labels, token_mask)
-            )
+            with self.step_timers['crf']:
+                outputs['loss'] = self.crf(
+                    logits, labels, mask=self.get_crf_mask(labels, token_mask)
+                )
         return outputs
 
     def decode(self, inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
