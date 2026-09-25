@@ -10,6 +10,7 @@ written before and after the migration stays readable by `--auto-resume`.
 """
 import logging
 import os
+import time
 from typing import Callable, Dict, NamedTuple, Optional, Protocol
 
 import numpy as np
@@ -119,6 +120,19 @@ class EarlyStopping:
         return False
 
 
+class TrainEpochResult(NamedTuple):
+    """One epoch's loss, and where the training loop's time went.
+
+    `data_seconds` and `step_seconds` partition the loop: the generator is
+    synchronous, so whatever is not the step is the cost of building the batch
+    and moving it to the device.
+    """
+
+    loss: float
+    data_seconds: float
+    step_seconds: float
+
+
 class Trainer:
     """Trains a model for the configured number of epochs.
 
@@ -195,11 +209,18 @@ class Trainer:
 
         return LambdaLR(self.optimizer, lr_lambda=get_learning_rate_factor)
 
-    def train_epoch(self, data_loader) -> float:
+    def train_epoch(self, data_loader) -> 'TrainEpochResult':
         self.model.train()
         total_loss = 0.0
         batch_count = 0
+        data_seconds = 0.0
+        step_seconds = 0.0
+        batch_start = time.perf_counter()
         for inputs, labels in data_loader:
+            # the generator is synchronous, so the time to arrive here is what
+            # building this batch and moving it to the device cost
+            data_seconds += time.perf_counter() - batch_start
+            step_start = time.perf_counter()
             self.optimizer.zero_grad()
             loss = self.model(inputs, labels)['loss']
             loss.backward()
@@ -210,9 +231,17 @@ class Trainer:
             self.optimizer.step()
             if self.scheduler is not None:
                 self.scheduler.step()
+            # `.item()` waits for the device, so this covers the step rather
+            # than just the time to queue it
             total_loss += loss.item()
+            step_seconds += time.perf_counter() - step_start
             batch_count += 1
-        return total_loss / max(batch_count, 1)
+            batch_start = time.perf_counter()
+        return TrainEpochResult(
+            loss=total_loss / max(batch_count, 1),
+            data_seconds=data_seconds,
+            step_seconds=step_seconds
+        )
 
     def train(self, data_loader) -> Dict[str, float]:
         initial_epoch = self.training_config.initial_epoch or 0
@@ -220,9 +249,13 @@ class Trainer:
         self.scheduler = self.create_scheduler(steps_per_epoch=len(data_loader))
         history: Dict[str, float] = {}
         for epoch in range(initial_epoch, max_epoch):
-            loss = self.train_epoch(data_loader)
+            epoch_start = time.perf_counter()
+            train_result = self.train_epoch(data_loader)
+            loss = train_result.loss
             history[f'epoch_{epoch}_loss'] = loss
+            evaluate_start = time.perf_counter()
             score = self.scorer(self.model) if self.scorer is not None else None
+            evaluate_seconds = time.perf_counter() - evaluate_start
             LOGGER.info('epoch %d: loss=%.4f score=%s', epoch, loss, score)
             # record the score before checkpointing, so that the meta a resume
             # reads includes this epoch rather than the state before it
@@ -231,12 +264,28 @@ class Trainer:
                 and self.training_config.early_stop
                 and self.early_stopping(score, epoch)
             )
+            checkpoint_start = time.perf_counter()
             if self.should_save_checkpoint(epoch):
                 assert self.save_checkpoint is not None
                 self.save_checkpoint(
                     epoch=epoch,
                     meta=self.get_meta(epoch, loss=loss, score=score)
                 )
+            checkpoint_seconds = time.perf_counter() - checkpoint_start
+            # a separate line from the one above, which is left as it is because
+            # it is what earlier runs are timed from
+            LOGGER.info(
+                ' '.join([
+                    'epoch %d timing: total=%.2fs batch=%.2fs step=%.2fs',
+                    'evaluate=%.2fs checkpoint=%.2fs'
+                ]),
+                epoch,
+                time.perf_counter() - epoch_start,
+                train_result.data_seconds,
+                train_result.step_seconds,
+                evaluate_seconds,
+                checkpoint_seconds
+            )
             if should_stop:
                 break
         return history

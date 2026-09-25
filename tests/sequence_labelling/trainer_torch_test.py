@@ -1,3 +1,6 @@
+import logging
+import re
+import time
 from typing import Dict, List, Optional, Tuple
 from unittest.mock import MagicMock
 
@@ -13,6 +16,9 @@ from sciencebeam_trainer_delft.sequence_labelling.trainer_torch import (
     Trainer,
     set_random_seed
 )
+
+
+TRAINER_LOGGER = 'sciencebeam_trainer_delft.sequence_labelling.trainer_torch'
 
 
 NTAGS = 5
@@ -268,3 +274,74 @@ class TestOptionalDependencies:
 def test_should_expose_no_optional_typing_leaks():
     optional_meta: Optional[dict] = None
     assert EarlyStopping(patience=1, initial_meta=optional_meta).best is None
+
+
+def _timing_lines(caplog) -> List[str]:
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if 'timing:' in record.getMessage()
+    ]
+
+
+def _phase_seconds(line: str, phase: str) -> float:
+    match = re.search(r'%s=([\d.]+)s' % phase, line)
+    assert match, 'no %s in %r' % (phase, line)
+    return float(match.group(1))
+
+
+class TestTrainerPhaseTiming:
+    def test_should_charge_the_time_to_reach_a_batch_to_the_batch_phase(self):
+        delay = 0.02
+        batches = _batches()
+
+        def _slow_batches():
+            for batch in batches:
+                time.sleep(delay)
+                yield batch
+
+        trainer = Trainer(_model(), _training_config())
+        result = trainer.train_epoch(_slow_batches())
+        assert result.data_seconds >= len(batches) * delay
+        assert result.step_seconds > 0
+
+    def test_should_still_return_the_mean_loss(self):
+        trainer = Trainer(_model(), _training_config())
+        result = trainer.train_epoch(_batches())
+        assert result.loss > 0
+
+    def test_should_log_every_phase_of_every_epoch(self, caplog):
+        trainer = Trainer(_model(), _training_config(max_epoch=2))
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        lines = _timing_lines(caplog)
+        assert len(lines) == 2
+        for line in lines:
+            for phase in ('total', 'batch', 'step', 'evaluate', 'checkpoint'):
+                _phase_seconds(line, phase)
+
+    def test_should_charge_writing_a_checkpoint_to_the_checkpoint_phase(self, caplog):
+        delay = 0.05
+        save_checkpoint = MagicMock(name='save_checkpoint')
+        save_checkpoint.side_effect = lambda **_: time.sleep(delay)
+        trainer = Trainer(
+            _model(), _training_config(max_epoch=1), save_checkpoint=save_checkpoint
+        )
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        assert _phase_seconds(_timing_lines(caplog)[0], 'checkpoint') >= delay
+
+    def test_should_report_no_checkpoint_time_when_none_is_written(self, caplog):
+        trainer = Trainer(_model(), _training_config(max_epoch=1))
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        assert _phase_seconds(_timing_lines(caplog)[0], 'checkpoint') == 0
+
+    def test_should_charge_scoring_to_the_evaluate_phase(self, caplog):
+        delay = 0.05
+        scorer = MagicMock(name='scorer')
+        scorer.side_effect = lambda _: time.sleep(delay) or 0.5
+        trainer = Trainer(_model(), _training_config(max_epoch=1), scorer=scorer)
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        assert _phase_seconds(_timing_lines(caplog)[0], 'evaluate') >= delay
