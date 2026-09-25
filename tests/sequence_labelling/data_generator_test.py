@@ -796,6 +796,8 @@ class TestDataGenerator:
         data_generator._shuffle_dataset()  # pylint: disable=protected-access
 
 
+DATA_GENERATOR_LOGGER = 'sciencebeam_trainer_delft.sequence_labelling.data_generator'
+
 CACHE_WORDS = [WORD_1, WORD_2, WORD_3, WORD_4]
 CACHE_FEATURE_VALUES = ['f-a', 'f-b', 'f-c']
 CACHE_LABELS = [LABEL_1, LABEL_2, LABEL_3]
@@ -905,6 +907,35 @@ class TestDataGeneratorTransformedFeaturesCache:
         assert data_generator[0]
         assert sum(value is not None for value in transformed_features) == 4
         assert transformed_features[0].dtype == np.float32
+
+    def test_should_say_when_it_is_holding_transformed_features(self, caplog):
+        x, y, features = _cache_test_dataset()
+        preprocessor = _cache_test_preprocessor(x, y, features)
+        with caplog.at_level(logging.INFO, logger=DATA_GENERATOR_LOGGER):
+            DataGenerator(
+                x, y, preprocessor=preprocessor, features=features,
+                batch_size=4, tokenize=False, shuffle=False
+            )
+        assert any(
+            'holding transformed features for %d sequences' % len(x)
+            in record.getMessage()
+            for record in caplog.records
+        )
+
+    def test_should_say_when_it_is_not(self, caplog):
+        # switched off it is simply slower, so silence would hide a cliff
+        x, y, features = _cache_test_dataset()
+        preprocessor = _cache_test_preprocessor(x, y, features)
+        with caplog.at_level(logging.INFO, logger=DATA_GENERATOR_LOGGER):
+            DataGenerator(
+                x, y, preprocessor=preprocessor, features=features,
+                batch_size=4, tokenize=False, shuffle=False,
+                cache_transformed_features=False
+            )
+        assert any(
+            'not holding transformed features, switched off' in record.getMessage()
+            for record in caplog.records
+        )
 
     def test_should_not_cache_for_upstream_features_preprocessor(self):
         x, y, features = _cache_test_dataset()

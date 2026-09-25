@@ -429,6 +429,20 @@ class DataGenerator:
         ):
             assert self.features is not None
             self.transformed_features = np.empty(len(self.features), dtype=object)
+            LOGGER.info(
+                'holding transformed features for %d sequences (name=%s)',
+                len(self.features), self.name
+            )
+        elif preprocessor.return_features:
+            # without this the run is simply slower, with nothing to say so
+            LOGGER.info(
+                'not holding transformed features, %s (name=%s)',
+                (
+                    'switched off' if not cache_transformed_features
+                    else 'features preprocessor pads to the batch'
+                ),
+                self.name
+            )
         if self.shuffle:
             # do we need to shuffle here?, the input was already shuffled
             self._shuffle_dataset()

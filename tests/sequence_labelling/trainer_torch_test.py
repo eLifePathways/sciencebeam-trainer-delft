@@ -1,3 +1,7 @@
+import logging
+import os
+import re
+import time
 from typing import Dict, List, Optional, Tuple
 from unittest.mock import MagicMock
 
@@ -13,6 +17,9 @@ from sciencebeam_trainer_delft.sequence_labelling.trainer_torch import (
     Trainer,
     set_random_seed
 )
+
+
+TRAINER_LOGGER = 'sciencebeam_trainer_delft.sequence_labelling.trainer_torch'
 
 
 NTAGS = 5
@@ -268,3 +275,117 @@ class TestOptionalDependencies:
 def test_should_expose_no_optional_typing_leaks():
     optional_meta: Optional[dict] = None
     assert EarlyStopping(patience=1, initial_meta=optional_meta).best is None
+
+
+class _SlowLoader(list):
+    """A loader whose batches take real time to arrive, as a real one's do."""
+
+    def __iter__(self):
+        for batch in list.__iter__(self):
+            time.sleep(0.03)
+            yield batch
+
+
+def _timing_lines(caplog) -> List[str]:
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if 'timing:' in record.getMessage()
+    ]
+
+
+def _phase_seconds(line: str, phase: str) -> float:
+    match = re.search(r'%s=([\d.]+)s' % phase, line)
+    assert match, 'no %s in %r' % (phase, line)
+    return float(match.group(1))
+
+
+def _phase_cores(line: str, phase: str) -> Optional[float]:
+    """Returns the phase's core count, or None where it is too short to report."""
+    match = re.search(r'%s=[\d.]+s \(([\d.]+) cores\)' % phase, line)
+    return float(match.group(1)) if match else None
+
+
+class TestTrainerPhaseTiming:
+    def test_should_charge_the_time_to_reach_a_batch_to_the_batch_phase(self):
+        delay = 0.02
+        batches = _batches()
+
+        def _slow_batches():
+            for batch in batches:
+                time.sleep(delay)
+                yield batch
+
+        trainer = Trainer(_model(), _training_config())
+        result = trainer.train_epoch(_slow_batches())
+        assert result.batch.seconds >= len(batches) * delay
+        assert result.step.seconds > 0
+
+    def test_should_still_return_the_mean_loss(self):
+        trainer = Trainer(_model(), _training_config())
+        result = trainer.train_epoch(_batches())
+        assert result.loss > 0
+
+    def test_should_log_every_phase_of_every_epoch(self, caplog):
+        trainer = Trainer(_model(), _training_config(max_epoch=2))
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        lines = _timing_lines(caplog)
+        assert len(lines) == 2
+        for line in lines:
+            for phase in ('total', 'batch', 'step', 'evaluate', 'checkpoint'):
+                _phase_seconds(line, phase)
+
+    def test_should_charge_writing_a_checkpoint_to_the_checkpoint_phase(self, caplog):
+        delay = 0.05
+        save_checkpoint = MagicMock(name='save_checkpoint')
+        save_checkpoint.side_effect = lambda **_: time.sleep(delay)
+        trainer = Trainer(
+            _model(), _training_config(max_epoch=1), save_checkpoint=save_checkpoint
+        )
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        assert _phase_seconds(_timing_lines(caplog)[0], 'checkpoint') >= delay
+
+    def test_should_report_no_checkpoint_time_when_none_is_written(self, caplog):
+        trainer = Trainer(_model(), _training_config(max_epoch=1))
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        assert _phase_seconds(_timing_lines(caplog)[0], 'checkpoint') == 0
+
+    def test_should_report_the_cores_of_each_phase_of_a_real_epoch(self, caplog):
+        # the sleeps make the phases long enough to measure without depending
+        # on how fast this machine trains a toy model
+        trainer = Trainer(
+            _model(), _training_config(max_epoch=1),
+            scorer=lambda _: time.sleep(0.05) or 0.5
+        )
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_SlowLoader(_batches()))
+        line = _timing_lines(caplog)[0]
+        for phase in ('total', 'batch', 'evaluate'):
+            cores = _phase_cores(line, phase)
+            assert cores is not None, 'no cores for %s in %r' % (phase, line)
+            assert 0 <= cores <= os.cpu_count()
+        # nothing is asserted about one phase against another: the CPU side is
+        # the whole process, so a phase that only waits is still credited with
+        # whatever else is running, and torch's pools spin between operations
+
+    def test_should_log_the_peak_memory_once_the_run_ends(self, caplog):
+        trainer = Trainer(_model(), _training_config(max_epoch=2))
+        with caplog.at_level(logging.INFO):
+            trainer.train(_batches())
+        peak_lines = [
+            record.getMessage() for record in caplog.records
+            if 'peak memory:' in record.getMessage()
+        ]
+        assert len(peak_lines) == 1
+
+    def test_should_charge_scoring_to_the_evaluate_phase(self, caplog):
+        delay = 0.05
+        scorer = MagicMock(name='scorer')
+        scorer.side_effect = lambda _: time.sleep(delay) or 0.5
+        trainer = Trainer(_model(), _training_config(max_epoch=1), scorer=scorer)
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        assert _phase_seconds(_timing_lines(caplog)[0], 'evaluate') >= delay
