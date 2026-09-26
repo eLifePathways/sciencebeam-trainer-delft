@@ -16,7 +16,7 @@ test_tag_using_existing_model:
       - tag: abstract
         regex: '.{200,}'
   - id: header_grobid_0_7_0_bidlstm_crf
-    model_path: https://github.com/kermitt2/grobid/raw/0.7.0/grobid-home/models/
+    model_path: https://github.com/kermitt2/grobid/raw/0.7.0/grobid-home/models/header-BidLSTM_CRF/
     input_path: https://github.com/elifesciences/sciencebeam-datasets/releases/download/v0.0.1/delft-grobid-0.5.6-header.test.gz
     expected_tags:
       - tag: title
@@ -24,7 +24,7 @@ test_tag_using_existing_model:
       - tag: abstract
         regex: '.{200,}'
   - id: header_grobid_0_8_2_bidlstm_crf
-    model_path: https://github.com/kermitt2/grobid/raw/0.8.2/grobid-home/models/
+    model_path: https://github.com/kermitt2/grobid/raw/0.8.2/grobid-home/models/header-BidLSTM_CRF/
     input_path: https://github.com/elifesciences/sciencebeam-datasets/releases/download/grobid-0.8.2/delft-grobid-0.8.2-header.train.gz
     expected_tags:
       - tag: title
