@@ -4,7 +4,14 @@ Upstream's wrapper of the same name is not subclassed: it loads embeddings in
 its constructor from its own resource registry, where this repo resolves them
 lazily through the embedding manager, and every method it offers is overridden
 here anyway.
+
+Labelling with one of upstream's architectures is left to upstream's tagger,
+whose data loader builds the inputs these architectures take, and which labels
+the sequences longer than the model takes in windows. The data generator here
+labels with the architectures of this repo, and with the ways of building
+inputs only it has.
 """
+import copy
 import logging
 import os
 import time
@@ -15,7 +22,9 @@ from typing import Sequence as TypingSequence
 import numpy as np
 from torch import nn
 
+from delft.sequenceLabelling.models import BaseSequenceLabeler
 from delft.sequenceLabelling.preprocess import Preprocessor
+from delft.sequenceLabelling.tagger import Tagger as DelftTagger
 from delft.utilities.preprocess import FeaturesPreprocessor
 
 from sciencebeam_trainer_delft.resources.default_config import DEFAULT_RESOURCE_REGISTRY_FILE
@@ -33,10 +42,6 @@ from sciencebeam_trainer_delft.utils.device import (
 from sciencebeam_trainer_delft.utils.download_manager import DownloadManager
 from sciencebeam_trainer_delft.utils.numpy import concatenate_or_none
 from sciencebeam_trainer_delft.utils.misc import str_to_bool
-
-from sciencebeam_trainer_delft.sequence_labelling.tools.install_models import (
-    copy_directory_with_source_meta
-)
 
 from sciencebeam_trainer_delft.embedding import Embeddings, EmbeddingManager
 
@@ -217,8 +222,15 @@ def prepare_preprocessor(
     if model_config.use_features and features is not None:
         LOGGER.info('fitting features preprocessor')
         preprocessor.fit_features(features)
+        # the columns the features preprocessor settled on, where none were asked
+        # for: upstream's takes those within features_vocabulary_size then. The
+        # columns asked for are the ones it uses, one over the limit being an
+        # error rather than left out
         if model_config.features_indices != preprocessor.feature_preprocessor.features_indices:
-            LOGGER.info('revised features_indices: %s', model_config.features_indices)
+            LOGGER.info(
+                'revised features_indices: %s -> %s',
+                model_config.features_indices, preprocessor.feature_preprocessor.features_indices
+            )
             model_config.features_indices = preprocessor.feature_preprocessor.features_indices
         # set dynamically, as upstream's own prepare_preprocessor does
         setattr(
@@ -714,6 +726,79 @@ class Sequence:
         if self.model_config.use_features and features is None:
             raise ValueError('features required')
         assert self.p is not None
+        annotations: Union[dict, Iterable[TypingSequence[Tuple[str, str]]]]
+        if self.is_tagged_by_delft():
+            annotations = self._tag_with_delft(texts, output_format, features=features)
+        else:
+            annotations = self._tag_with_data_generator(texts, output_format, features=features)
+        if self.tag_debug_reporter:
+            if not isinstance(annotations, dict):
+                # the tag debug reporter only supports lists
+                # additionally should not consume the iterable
+                annotations = list(annotations)
+            self.tag_debug_reporter.report_tag_results(
+                texts=texts,
+                features=features,
+                annotations=annotations,
+                model_name=self._get_model_name()
+            )
+        return annotations
+
+    def is_tagged_by_delft(self) -> bool:
+        """
+        Whether upstream's tagger labels with the model: one of upstream's
+        architectures, whose inputs its data loader builds, with none of the ways
+        of building them that only the data generator here has.
+        """
+        model_config = self.model_config
+        return (
+            isinstance(self.model, BaseSequenceLabeler)
+            and not model_config.additional_token_feature_indices
+            and not model_config.text_feature_indices
+            and not model_config.concatenated_embeddings_token_count
+            and model_config.unroll_text_feature_index is None
+        )
+
+    def _get_delft_tag_model_config(self) -> ModelConfig:
+        """
+        The configuration upstream's tagger reads, with the windows asked for here:
+        no `max_sequence_length` is no limit, as for the data generator. A
+        transformer takes no more than it was trained with, whatever is asked.
+        """
+        model_config = copy.copy(self.model_config)
+        max_sequence_length = self.max_sequence_length
+        trained_max_sequence_length = self.model_config.max_sequence_length
+        if model_config.transformer_name and trained_max_sequence_length:
+            max_sequence_length = min(
+                max_sequence_length or trained_max_sequence_length,
+                trained_max_sequence_length
+            )
+        model_config.max_sequence_length = max_sequence_length
+        return model_config
+
+    def _tag_with_delft(
+        self, texts, output_format: Optional[str], features=None
+    ) -> Union[dict, List[List[Tuple[str, str]]]]:
+        start_time = time.time()
+        tagger = DelftTagger(
+            self.model,
+            self._get_delft_tag_model_config(),
+            embeddings=self.embeddings,
+            preprocessor=self.p,
+            device=self.device
+        )
+        # without a stride asked for here, the one the model was trained with
+        annotations = tagger.tag(
+            list(texts), output_format, features=features, window_stride=self.input_window_stride
+        )
+        if output_format == 'json':
+            annotations["runtime"] = round(time.time() - start_time, 3)
+        return annotations
+
+    def _tag_with_data_generator(
+        self, texts, output_format: Optional[str], features=None
+    ) -> Union[dict, Iterable[TypingSequence[Tuple[str, str]]]]:
+        assert self.p is not None
         tagger = Tagger(
             model=self.model,
             model_config=self.model_config,
@@ -741,17 +826,6 @@ class Sequence:
                 list(texts), output_format,
                 features=features,
                 tag_transformed=self.tag_transformed
-            )
-        if self.tag_debug_reporter:
-            if not isinstance(annotations, dict):
-                # the tag debug reporter only supports lists
-                # additionally should not consume the iterable
-                annotations = list(annotations)
-            self.tag_debug_reporter.report_tag_results(
-                texts=texts,
-                features=features,
-                annotations=annotations,
-                model_name=self._get_model_name()
             )
         return annotations
 
@@ -842,22 +916,16 @@ class Sequence:
             LOGGER.exception('failed to load model from %r', directory, exc_info=exc)
             raise
 
-    def download_model(self, dir_path: str) -> str:
-        if not dir_path.endswith('.tar.gz'):
-            return dir_path
-        local_dir_path = str(self.download_manager.get_local_file(
-            dir_path, auto_uncompress=False
-        )).replace('.tar.gz', '')
-        copy_directory_with_source_meta(dir_path, local_dir_path)
-        return local_dir_path
-
     def load_from(self, directory: str, weight_file: Optional[str] = None):
         model_loader = ModelLoader(download_manager=self.download_manager)
-        directory = self.download_model(directory)
+        directory = model_loader.download_model(directory)
         self.model_path = directory
         self.p = model_loader.load_preprocessor_from_directory(directory)
         assert self.p is not None
         self.model_config = model_loader.load_model_config_from_directory(directory)
+        # a config delft saved does not say use_features: it is implied by the
+        # architecture, as it is when training here
+        updated_implicit_model_config_props(self.model_config)
         self.model_config.batch_size = self.training_config.batch_size
         if self.stateful is not None:
             self.model_config.stateful = self.stateful
@@ -879,3 +947,7 @@ class Sequence:
         )
         self.model.to(self.device)
         self.update_dataset_transformer_factor()
+        LOGGER.info(
+            'model %s (%s) labels with %s', self._get_model_name(), self.model_config.architecture,
+            "delft's tagger" if self.is_tagged_by_delft() else 'the data generator'
+        )

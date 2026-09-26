@@ -18,7 +18,8 @@ from sciencebeam_trainer_delft.sequence_labelling.wrapper import (
 )
 from sciencebeam_trainer_delft.sequence_labelling.config import (
     DEFAULT_CHAR_INPUT_DROPOUT,
-    DEFAULT_CHAR_LSTM_DROPOUT
+    DEFAULT_CHAR_LSTM_DROPOUT,
+    ModelConfig
 )
 from sciencebeam_trainer_delft.sequence_labelling.models import get_model_names
 
@@ -424,7 +425,24 @@ def add_train_arguments(parser: argparse.ArgumentParser):
     features_group.add_argument(
         "--features-indices", "--feature-indices",
         type=parse_number_ranges,
-        help="The feature indices to use. e.g. 7-10. If blank, all of the features will be used."
+        help=(
+            "The feature columns to use, e.g. 9-30, column 0 being the token."
+            " The architectures that take the features as indices (the *_FEATURES ones,"
+            " or with --use-features-indices-input) use exactly these, and refuse a column"
+            " with more distinct values than --features-vocabulary-size: if blank, they"
+            " use every column within that limit, which leaves out the lexical ones"
+            " (the token, its prefixes and suffixes). The others use every column if blank."
+        )
+    )
+    features_group.add_argument(
+        "--features-vocabulary-size",
+        type=int,
+        default=ModelConfig.DEFAULT_FEATURES_VOCABULARY_SIZE,
+        help=(
+            "The most distinct values a feature column may have, for the architectures"
+            " that take the features as indices. Raise it to use a column asked for with"
+            " --features-indices that has more."
+        )
     )
     features_group.add_argument(
         "--continuous-features-indices",

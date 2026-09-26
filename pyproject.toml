@@ -68,6 +68,12 @@ conflicts = [
 ]
 
 [tool.uv.sources]
+# TEMPORARY, until a delft release after 1.1.0: loading models from the Hugging
+# Face Hub, and weights saved as safetensors, are on its dev branch only. The
+# 1.1.0 on PyPI lacks them although dev has the same version number, so the
+# floor above cannot tell them apart. uv.lock holds the commit; to follow the
+# branch, `uv lock --upgrade-package delft`
+delft = { git = "https://github.com/kermitt2/delft", branch = "dev" }
 torch = [
     { index = "pytorch-cpu", group = "cpu" },
     { index = "pytorch-cu130", group = "gpu" },
