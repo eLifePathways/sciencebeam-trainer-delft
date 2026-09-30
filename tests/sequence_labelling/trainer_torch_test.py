@@ -12,7 +12,9 @@ import torch
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig, TrainingConfig
 from sciencebeam_trainer_delft.sequence_labelling.models import CustomBidLSTM_CRF
 from sciencebeam_trainer_delft.utils.resource_usage import (
-    SCIENCEBEAM_DELFT_STEP_TIMING
+    SCIENCEBEAM_DELFT_PROFILE_STEPS,
+    SCIENCEBEAM_DELFT_STEP_TIMING,
+    SCIENCEBEAM_DELFT_TORCH_COMPILE
 )
 from sciencebeam_trainer_delft.sequence_labelling.trainer_torch import (
     EarlyStopping,
@@ -444,3 +446,88 @@ class TestTrainerStepTiming:
         trainer.model.step_timers['logits'].seconds = 99.0
         trainer.train(_batches())
         assert trainer.model.step_timers['logits'].seconds < 99.0
+
+
+RESOURCE_USAGE_LOGGER = 'sciencebeam_trainer_delft.utils.resource_usage'
+
+
+class TestTrainerProfiling:
+    def test_should_not_profile_unless_asked_for(self, caplog, monkeypatch):
+        monkeypatch.delenv(SCIENCEBEAM_DELFT_PROFILE_STEPS, raising=False)
+        trainer = Trainer(_model(), _training_config(max_epoch=1))
+        with caplog.at_level(logging.INFO):
+            trainer.train(_batches())
+        assert not [
+            r for r in caplog.records if 'profile' in r.getMessage()
+        ]
+
+    def test_should_profile_the_opening_steps_when_asked_for(self, caplog, monkeypatch):
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_PROFILE_STEPS, '1')
+        trainer = Trainer(_model(), _training_config(max_epoch=1))
+        with caplog.at_level(logging.INFO):
+            trainer.train(_batches())
+        messages = [r.getMessage() for r in caplog.records]
+        assert any('profiling the first 1 steps' in m for m in messages)
+        assert any('profile, by' in m for m in messages)
+
+    def test_should_profile_once_rather_than_every_epoch(self, caplog, monkeypatch):
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_PROFILE_STEPS, '1')
+        trainer = Trainer(_model(), _training_config(max_epoch=3))
+        with caplog.at_level(logging.INFO):
+            trainer.train(_batches())
+        tables = [r.getMessage() for r in caplog.records if 'profile, by' in r.getMessage()]
+        assert len(tables) == 1
+
+    def test_should_cover_every_step_it_profiled(self, caplog, monkeypatch):
+        # pins that the report covers the steps it says it does, so that adding
+        # a profiler schedule later cannot quietly narrow it to the last one
+        def largest_call_count(steps: int) -> int:
+            caplog.clear()
+            monkeypatch.setenv(SCIENCEBEAM_DELFT_PROFILE_STEPS, str(steps))
+            trainer = Trainer(_model(), _training_config(max_epoch=1))
+            with caplog.at_level(logging.INFO, logger=RESOURCE_USAGE_LOGGER):
+                trainer.train(_batches(count=4))
+            table = [r.getMessage() for r in caplog.records if 'profile, by' in r.getMessage()][0]
+            return max(
+                int(match.group(1))
+                for match in re.finditer(r'(\d+)\s*$', table, re.MULTILINE)
+            )
+
+        assert largest_call_count(3) > largest_call_count(1)
+
+    def test_should_report_what_it_managed_when_the_epoch_is_shorter(
+        self, caplog, monkeypatch
+    ):
+        # asking for more steps than the epoch has must still produce a report
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_PROFILE_STEPS, '99')
+        trainer = Trainer(_model(), _training_config(max_epoch=1))
+        with caplog.at_level(logging.INFO):
+            trainer.train(_batches(count=2))
+        assert any('profile, by' in r.getMessage() for r in caplog.records)
+
+
+class TestTrainerTorchCompile:
+    def test_should_not_compile_unless_asked_for(self, caplog, monkeypatch):
+        monkeypatch.delenv(SCIENCEBEAM_DELFT_TORCH_COMPILE, raising=False)
+        trainer = Trainer(_model(), _training_config(max_epoch=1))
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        assert not [
+            r for r in caplog.records if 'compiling' in r.getMessage()
+        ]
+
+    def test_should_stop_splitting_the_forward_pass_when_compiling(self, monkeypatch):
+        # dynamo replaces the model's Python, so its own timers would report a
+        # forward pass that no longer runs that way
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_TORCH_COMPILE, '1')
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_STEP_TIMING, '1')
+        model = _model()
+        trainer = Trainer(model, _training_config(max_epoch=1))
+        assert all(timer.enabled for timer in model.step_timers.values())
+        try:
+            trainer.train(_batches())
+        except Exception:  # pylint: disable=broad-except
+            # compiling can fail on an architecture or a torch this old; what
+            # matters here is that the timers were switched off before it ran
+            pass
+        assert not any(timer.enabled for timer in model.step_timers.values())
