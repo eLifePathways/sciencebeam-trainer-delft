@@ -28,6 +28,17 @@ MIN_MEASURABLE_SECONDS = 0.01
 # than always on
 SCIENCEBEAM_DELFT_STEP_TIMING = 'SCIENCEBEAM_DELFT_STEP_TIMING'
 
+# torch.compile traces the model into fused graphs. It costs a long first step
+# to compile, and what it does to a given model is not predictable from reading
+# it, so it is asked for and measured rather than switched on.
+SCIENCEBEAM_DELFT_TORCH_COMPILE = 'SCIENCEBEAM_DELFT_TORCH_COMPILE'
+
+# the number of steps of the first epoch to profile. `step` timing says how long
+# forward and backward take but not what is inside them, and backward has no
+# phases to instrument, because autograd does not run the model's own code.
+SCIENCEBEAM_DELFT_PROFILE_STEPS = 'SCIENCEBEAM_DELFT_PROFILE_STEPS'
+DEFAULT_PROFILE_ROWS = 15
+
 
 def get_cpu_seconds() -> float:
     """Returns the CPU seconds used so far, across this process's threads.
@@ -166,3 +177,38 @@ def synchronize_device() -> None:
     """
     if torch.cuda.is_available():
         torch.cuda.synchronize()
+
+
+def is_torch_compile_enabled() -> bool:
+    """Reports whether the model should be handed to `torch.compile`."""
+    return bool(str_to_bool(
+        os.environ.get(SCIENCEBEAM_DELFT_TORCH_COMPILE, ''), default_value=False
+    ))
+
+
+def get_profile_steps() -> int:
+    """Returns how many steps of the first epoch to profile, zero for none."""
+    value = os.environ.get(SCIENCEBEAM_DELFT_PROFILE_STEPS, '').strip()
+    if not value:
+        return 0
+    steps = int(value)
+    if steps < 0:
+        raise ValueError(
+            '%s must not be negative: %r' % (SCIENCEBEAM_DELFT_PROFILE_STEPS, value)
+        )
+    return steps
+
+
+def log_profile_table(profiler, rows: int = DEFAULT_PROFILE_ROWS) -> None:
+    """Logs what the profiler recorded, ordered by the time spent in each operator.
+
+    Sorted by device time where there is a device, because that is the half the
+    phase timings cannot reach: `backward` runs in autograd rather than in the
+    model, so it has no phases of its own to measure and only an operator
+    breakdown says what it is made of.
+    """
+    sort_by = (
+        'self_device_time_total' if torch.cuda.is_available() else 'self_cpu_time_total'
+    )
+    table = profiler.key_averages().table(sort_by=sort_by, row_limit=rows)
+    LOGGER.info('profile, by %s:\n%s', sort_by, table)

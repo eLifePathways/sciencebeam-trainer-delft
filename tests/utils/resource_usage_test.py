@@ -6,7 +6,11 @@ import torch
 
 from sciencebeam_trainer_delft.utils.resource_usage import (
     PhaseTimer,
+    SCIENCEBEAM_DELFT_PROFILE_STEPS,
     SCIENCEBEAM_DELFT_STEP_TIMING,
+    SCIENCEBEAM_DELFT_TORCH_COMPILE,
+    get_profile_steps,
+    is_torch_compile_enabled,
     get_cpu_seconds,
     is_step_timing_enabled,
     synchronize_device,
@@ -136,3 +140,37 @@ class TestPhaseTimerReset:
         timer.reset()
         assert timer.seconds == 0
         assert timer.cpu_seconds == 0
+
+
+class TestIsTorchCompileEnabled:
+    def test_should_be_off_unless_asked_for(self, monkeypatch):
+        monkeypatch.delenv(SCIENCEBEAM_DELFT_TORCH_COMPILE, raising=False)
+        assert is_torch_compile_enabled() is False
+
+    def test_should_be_on_when_asked_for(self, monkeypatch):
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_TORCH_COMPILE, '1')
+        assert is_torch_compile_enabled() is True
+
+
+class TestGetProfileSteps:
+    def test_should_be_none_unless_asked_for(self, monkeypatch):
+        monkeypatch.delenv(SCIENCEBEAM_DELFT_PROFILE_STEPS, raising=False)
+        assert get_profile_steps() == 0
+
+    def test_should_be_none_for_an_empty_value(self, monkeypatch):
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_PROFILE_STEPS, '  ')
+        assert get_profile_steps() == 0
+
+    def test_should_return_the_number_of_steps_asked_for(self, monkeypatch):
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_PROFILE_STEPS, '5')
+        assert get_profile_steps() == 5
+
+    def test_should_refuse_a_negative_number(self, monkeypatch):
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_PROFILE_STEPS, '-1')
+        with pytest.raises(ValueError):
+            get_profile_steps()
+
+    def test_should_refuse_something_that_is_not_a_number(self, monkeypatch):
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_PROFILE_STEPS, 'lots')
+        with pytest.raises(ValueError):
+            get_profile_steps()

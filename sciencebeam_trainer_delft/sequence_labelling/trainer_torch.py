@@ -33,8 +33,11 @@ from sciencebeam_trainer_delft.sequence_labelling.typing import (
 from sciencebeam_trainer_delft.utils.numpy import concatenate_or_none
 from sciencebeam_trainer_delft.utils.resource_usage import (
     PhaseTimer,
+    get_profile_steps,
     is_step_timing_enabled,
-    log_peak_memory_usage
+    is_torch_compile_enabled,
+    log_peak_memory_usage,
+    log_profile_table
 )
 
 
@@ -169,6 +172,9 @@ class Trainer:
             patience=training_config.patience,
             initial_meta=training_config.initial_meta
         )
+        # counted down by the first epoch, so a run profiles its opening steps
+        # rather than every step of every epoch
+        self.remaining_profile_steps = get_profile_steps()
 
     def get_optimizer_meta(self) -> dict:
         optimizer_type = type(self.optimizer)
@@ -216,6 +222,24 @@ class Trainer:
 
         return LambdaLR(self.optimizer, lr_lambda=get_learning_rate_factor)
 
+    def _start_profiler(self):
+        """Starts a profiler for the opening steps, if a run asked for one."""
+        if not self.remaining_profile_steps:
+            return None
+        activities = [torch.profiler.ProfilerActivity.CPU]
+        if torch.cuda.is_available():
+            activities.append(torch.profiler.ProfilerActivity.CUDA)
+        LOGGER.info('profiling the first %d steps', self.remaining_profile_steps)
+        profiler = torch.profiler.profile(activities=activities)
+        profiler.start()
+        return profiler
+
+    def _finish_profiler(self, profiler) -> None:
+        """Stops the profiler, reports it, and leaves the rest of the run alone."""
+        profiler.stop()
+        log_profile_table(profiler)
+        self.remaining_profile_steps = 0
+
     def train_epoch(self, data_loader) -> 'TrainEpochResult':
         self.model.train()
         total_loss = 0.0
@@ -232,6 +256,8 @@ class Trainer:
         # the generator is synchronous, so everything outside the step below,
         # including the final call that ends the loop, is what building the
         # batches and moving them to the device cost
+        profiler = self._start_profiler()
+        profiled_steps = 0
         batch_timer.start()
         for inputs, labels in data_loader:
             batch_timer.stop()
@@ -253,15 +279,26 @@ class Trainer:
                 # rather than just the time to queue it
                 total_loss += loss.item()
             batch_count += 1
+            if profiler is not None:
+                # `profiler.step()` advances a schedule, and this profiler has
+                # none: it records from start to stop, so counting is all the
+                # step boundary is needed for
+                profiled_steps += 1
+                if profiled_steps >= self.remaining_profile_steps:
+                    self._finish_profiler(profiler)
+                    profiler = None
             batch_timer.start()
         batch_timer.stop()
+        if profiler is not None:
+            # the epoch ran out of batches before the profile did
+            self._finish_profiler(profiler)
         return TrainEpochResult(
             loss=total_loss / max(batch_count, 1),
             batch=batch_timer,
             step=step_timer,
             step_parts=(
                 [forward_timer, backward_timer, optimizer_timer]
-                + list(model_timers.values())
+                + [timer for timer in model_timers.values() if timer.enabled]
                 if detailed else []
             )
         )
@@ -269,6 +306,22 @@ class Trainer:
     def train(self, data_loader) -> Dict[str, float]:
         initial_epoch = self.training_config.initial_epoch or 0
         max_epoch = self.training_config.max_epoch
+        if is_torch_compile_enabled():
+            # the first step then pays for tracing the model, so the epoch that
+            # carries it is not comparable with the ones after it
+            LOGGER.info('compiling the model')
+            # the model's own timers measure its Python, which is what tracing
+            # replaces, so they would report a forward pass that no longer runs
+            # that way. Reporting nothing is better than reporting that.
+            for timer in getattr(self.model, 'step_timers', {}).values():
+                timer.enabled = False
+            LOGGER.info(
+                'not splitting the forward pass while compiled:'
+                ' the parts are traced away'
+            )
+            # torch.compile is typed as returning a callable rather than the
+            # module it wraps, though it forwards attributes to it
+            self.model = torch.compile(self.model)  # type: ignore[assignment]
         self.scheduler = self.create_scheduler(steps_per_epoch=len(data_loader))
         history: Dict[str, float] = {}
         for epoch in range(initial_epoch, max_epoch):
