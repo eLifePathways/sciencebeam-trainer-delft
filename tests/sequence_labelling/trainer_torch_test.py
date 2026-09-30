@@ -11,6 +11,9 @@ import torch
 
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig, TrainingConfig
 from sciencebeam_trainer_delft.sequence_labelling.models import CustomBidLSTM_CRF
+from sciencebeam_trainer_delft.utils.resource_usage import (
+    SCIENCEBEAM_DELFT_STEP_TIMING
+)
 from sciencebeam_trainer_delft.sequence_labelling.trainer_torch import (
     EarlyStopping,
     MetaKeys,
@@ -389,3 +392,55 @@ class TestTrainerPhaseTiming:
         with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
             trainer.train(_batches())
         assert _phase_seconds(_timing_lines(caplog)[0], 'evaluate') >= delay
+
+
+def _step_lines(caplog) -> List[str]:
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if ' step: ' in record.getMessage()
+    ]
+
+
+class TestTrainerStepTiming:
+    def test_should_not_split_the_step_unless_asked_for(self, caplog, monkeypatch):
+        monkeypatch.delenv(SCIENCEBEAM_DELFT_STEP_TIMING, raising=False)
+        trainer = Trainer(_model(), _training_config(max_epoch=2))
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        assert not _step_lines(caplog)
+        assert len(_timing_lines(caplog)) == 2
+
+    def test_should_split_the_step_when_asked_for(self, caplog, monkeypatch):
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_STEP_TIMING, '1')
+        trainer = Trainer(_model(), _training_config(max_epoch=2))
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        lines = _step_lines(caplog)
+        assert len(lines) == 2
+        for line in lines:
+            for part in ('forward', 'backward', 'optimizer', 'logits', 'crf'):
+                assert _phase_seconds(line, part) >= 0
+
+    def test_should_account_for_the_whole_step(self, caplog, monkeypatch):
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_STEP_TIMING, '1')
+        trainer = Trainer(_model(), _training_config(max_epoch=1))
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        step_line = _step_lines(caplog)[0]
+        parts = sum(
+            _phase_seconds(step_line, part)
+            for part in ('forward', 'backward', 'optimizer')
+        )
+        step = _phase_seconds(_timing_lines(caplog)[0], 'step')
+        # the step is those three plus the loss readback that ends each batch
+        assert parts <= step + 0.01
+
+    def test_should_report_each_epoch_rather_than_the_run_so_far(self, monkeypatch):
+        # the model owns its timers across epochs, so an epoch has to clear them
+        # before it starts; otherwise each one reports every epoch before it too
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_STEP_TIMING, '1')
+        trainer = Trainer(_model(), _training_config(max_epoch=1))
+        trainer.model.step_timers['logits'].seconds = 99.0
+        trainer.train(_batches())
+        assert trainer.model.step_timers['logits'].seconds < 99.0
