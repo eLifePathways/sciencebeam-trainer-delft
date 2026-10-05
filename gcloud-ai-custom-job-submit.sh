@@ -13,6 +13,7 @@ MACHINE_TYPE="n1-highmem-8"
 ACCELERATOR_TYPE="NVIDIA_TESLA_T4"
 ACCELERATOR_COUNT="1"
 NO_ACCELERATOR=false
+ENV_VARS=()
 
 while [[ $# -gt 0 ]]; do
     key="$1"
@@ -35,6 +36,8 @@ while [[ $# -gt 0 ]]; do
             NO_ACCELERATOR=true; shift ;;
         --module-name)
             MODULE_NAME="$2"; shift; shift ;;
+        --env)
+            ENV_VARS+=("$2"); shift; shift ;;
         --)
             shift; break ;;
         *)
@@ -56,7 +59,15 @@ else
     WORKER_POOL_SPEC="machine-type=${MACHINE_TYPE},accelerator-type=${ACCELERATOR_TYPE},accelerator-count=${ACCELERATOR_COUNT},replica-count=1,container-image-uri=${CONTAINER_IMAGE_URI}"
 fi
 
-ARGS_CSV=$(printf '%s\n' "python" "-m" "${MODULE_NAME}" "$@" | paste -sd ',')
+# the container entrypoint ends with `exec "$@"`, so these args are the command
+# and `env` can carry variables into it; the args are joined with commas, so a
+# value containing one cannot be passed this way
+COMMAND=(python -m "${MODULE_NAME}")
+if [ ${#ENV_VARS[@]} -gt 0 ]; then
+    COMMAND=(env "${ENV_VARS[@]}" "${COMMAND[@]}")
+fi
+
+ARGS_CSV=$(printf '%s\n' "${COMMAND[@]}" "$@" | paste -sd ',')
 
 echo "DISPLAY_NAME: ${DISPLAY_NAME}"
 echo "CONTAINER_IMAGE_URI: ${CONTAINER_IMAGE_URI}"

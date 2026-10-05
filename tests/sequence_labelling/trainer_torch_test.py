@@ -1,3 +1,7 @@
+import logging
+import os
+import re
+import time
 from typing import Dict, List, Optional, Tuple
 from unittest.mock import MagicMock
 
@@ -7,12 +11,20 @@ import torch
 
 from sciencebeam_trainer_delft.sequence_labelling.config import ModelConfig, TrainingConfig
 from sciencebeam_trainer_delft.sequence_labelling.models import CustomBidLSTM_CRF
+from sciencebeam_trainer_delft.utils.resource_usage import (
+    SCIENCEBEAM_DELFT_PROFILE_STEPS,
+    SCIENCEBEAM_DELFT_STEP_TIMING,
+    SCIENCEBEAM_DELFT_TORCH_COMPILE
+)
 from sciencebeam_trainer_delft.sequence_labelling.trainer_torch import (
     EarlyStopping,
     MetaKeys,
     Trainer,
     set_random_seed
 )
+
+
+TRAINER_LOGGER = 'sciencebeam_trainer_delft.sequence_labelling.trainer_torch'
 
 
 NTAGS = 5
@@ -268,3 +280,254 @@ class TestOptionalDependencies:
 def test_should_expose_no_optional_typing_leaks():
     optional_meta: Optional[dict] = None
     assert EarlyStopping(patience=1, initial_meta=optional_meta).best is None
+
+
+class _SlowLoader(list):
+    """A loader whose batches take real time to arrive, as a real one's do."""
+
+    def __iter__(self):
+        for batch in list.__iter__(self):
+            time.sleep(0.03)
+            yield batch
+
+
+def _timing_lines(caplog) -> List[str]:
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if 'timing:' in record.getMessage()
+    ]
+
+
+def _phase_seconds(line: str, phase: str) -> float:
+    match = re.search(r'%s=([\d.]+)s' % phase, line)
+    assert match, 'no %s in %r' % (phase, line)
+    return float(match.group(1))
+
+
+def _phase_cores(line: str, phase: str) -> Optional[float]:
+    """Returns the phase's core count, or None where it is too short to report."""
+    match = re.search(r'%s=[\d.]+s \(([\d.]+) cores\)' % phase, line)
+    return float(match.group(1)) if match else None
+
+
+class TestTrainerPhaseTiming:
+    def test_should_charge_the_time_to_reach_a_batch_to_the_batch_phase(self):
+        delay = 0.02
+        batches = _batches()
+
+        def _slow_batches():
+            for batch in batches:
+                time.sleep(delay)
+                yield batch
+
+        trainer = Trainer(_model(), _training_config())
+        result = trainer.train_epoch(_slow_batches())
+        assert result.batch.seconds >= len(batches) * delay
+        assert result.step.seconds > 0
+
+    def test_should_still_return_the_mean_loss(self):
+        trainer = Trainer(_model(), _training_config())
+        result = trainer.train_epoch(_batches())
+        assert result.loss > 0
+
+    def test_should_log_every_phase_of_every_epoch(self, caplog):
+        trainer = Trainer(_model(), _training_config(max_epoch=2))
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        lines = _timing_lines(caplog)
+        assert len(lines) == 2
+        for line in lines:
+            for phase in ('total', 'batch', 'step', 'evaluate', 'checkpoint'):
+                _phase_seconds(line, phase)
+
+    def test_should_charge_writing_a_checkpoint_to_the_checkpoint_phase(self, caplog):
+        delay = 0.05
+        save_checkpoint = MagicMock(name='save_checkpoint')
+        save_checkpoint.side_effect = lambda **_: time.sleep(delay)
+        trainer = Trainer(
+            _model(), _training_config(max_epoch=1), save_checkpoint=save_checkpoint
+        )
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        assert _phase_seconds(_timing_lines(caplog)[0], 'checkpoint') >= delay
+
+    def test_should_report_no_checkpoint_time_when_none_is_written(self, caplog):
+        trainer = Trainer(_model(), _training_config(max_epoch=1))
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        assert _phase_seconds(_timing_lines(caplog)[0], 'checkpoint') == 0
+
+    def test_should_report_the_cores_of_each_phase_of_a_real_epoch(self, caplog):
+        # the sleeps make the phases long enough to measure without depending
+        # on how fast this machine trains a toy model
+        trainer = Trainer(
+            _model(), _training_config(max_epoch=1),
+            scorer=lambda _: time.sleep(0.05) or 0.5
+        )
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_SlowLoader(_batches()))
+        line = _timing_lines(caplog)[0]
+        for phase in ('total', 'batch', 'evaluate'):
+            cores = _phase_cores(line, phase)
+            assert cores is not None, 'no cores for %s in %r' % (phase, line)
+            assert 0 <= cores <= os.cpu_count()
+        # nothing is asserted about one phase against another: the CPU side is
+        # the whole process, so a phase that only waits is still credited with
+        # whatever else is running, and torch's pools spin between operations
+
+    def test_should_log_the_peak_memory_once_the_run_ends(self, caplog):
+        trainer = Trainer(_model(), _training_config(max_epoch=2))
+        with caplog.at_level(logging.INFO):
+            trainer.train(_batches())
+        peak_lines = [
+            record.getMessage() for record in caplog.records
+            if 'peak memory:' in record.getMessage()
+        ]
+        assert len(peak_lines) == 1
+
+    def test_should_charge_scoring_to_the_evaluate_phase(self, caplog):
+        delay = 0.05
+        scorer = MagicMock(name='scorer')
+        scorer.side_effect = lambda _: time.sleep(delay) or 0.5
+        trainer = Trainer(_model(), _training_config(max_epoch=1), scorer=scorer)
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        assert _phase_seconds(_timing_lines(caplog)[0], 'evaluate') >= delay
+
+
+def _step_lines(caplog) -> List[str]:
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if ' step: ' in record.getMessage()
+    ]
+
+
+class TestTrainerStepTiming:
+    def test_should_not_split_the_step_unless_asked_for(self, caplog, monkeypatch):
+        monkeypatch.delenv(SCIENCEBEAM_DELFT_STEP_TIMING, raising=False)
+        trainer = Trainer(_model(), _training_config(max_epoch=2))
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        assert not _step_lines(caplog)
+        assert len(_timing_lines(caplog)) == 2
+
+    def test_should_split_the_step_when_asked_for(self, caplog, monkeypatch):
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_STEP_TIMING, '1')
+        trainer = Trainer(_model(), _training_config(max_epoch=2))
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        lines = _step_lines(caplog)
+        assert len(lines) == 2
+        for line in lines:
+            for part in ('forward', 'backward', 'optimizer', 'logits', 'crf'):
+                assert _phase_seconds(line, part) >= 0
+
+    def test_should_account_for_the_whole_step(self, caplog, monkeypatch):
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_STEP_TIMING, '1')
+        trainer = Trainer(_model(), _training_config(max_epoch=1))
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        step_line = _step_lines(caplog)[0]
+        parts = sum(
+            _phase_seconds(step_line, part)
+            for part in ('forward', 'backward', 'optimizer')
+        )
+        step = _phase_seconds(_timing_lines(caplog)[0], 'step')
+        # the step is those three plus the loss readback that ends each batch
+        assert parts <= step + 0.01
+
+    def test_should_report_each_epoch_rather_than_the_run_so_far(self, monkeypatch):
+        # the model owns its timers across epochs, so an epoch has to clear them
+        # before it starts; otherwise each one reports every epoch before it too
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_STEP_TIMING, '1')
+        trainer = Trainer(_model(), _training_config(max_epoch=1))
+        trainer.model.step_timers['logits'].seconds = 99.0
+        trainer.train(_batches())
+        assert trainer.model.step_timers['logits'].seconds < 99.0
+
+
+RESOURCE_USAGE_LOGGER = 'sciencebeam_trainer_delft.utils.resource_usage'
+
+
+class TestTrainerProfiling:
+    def test_should_not_profile_unless_asked_for(self, caplog, monkeypatch):
+        monkeypatch.delenv(SCIENCEBEAM_DELFT_PROFILE_STEPS, raising=False)
+        trainer = Trainer(_model(), _training_config(max_epoch=1))
+        with caplog.at_level(logging.INFO):
+            trainer.train(_batches())
+        assert not [
+            r for r in caplog.records if 'profile' in r.getMessage()
+        ]
+
+    def test_should_profile_the_opening_steps_when_asked_for(self, caplog, monkeypatch):
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_PROFILE_STEPS, '1')
+        trainer = Trainer(_model(), _training_config(max_epoch=1))
+        with caplog.at_level(logging.INFO):
+            trainer.train(_batches())
+        messages = [r.getMessage() for r in caplog.records]
+        assert any('profiling the first 1 steps' in m for m in messages)
+        assert any('profile, by' in m for m in messages)
+
+    def test_should_profile_once_rather_than_every_epoch(self, caplog, monkeypatch):
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_PROFILE_STEPS, '1')
+        trainer = Trainer(_model(), _training_config(max_epoch=3))
+        with caplog.at_level(logging.INFO):
+            trainer.train(_batches())
+        tables = [r.getMessage() for r in caplog.records if 'profile, by' in r.getMessage()]
+        assert len(tables) == 1
+
+    def test_should_cover_every_step_it_profiled(self, caplog, monkeypatch):
+        # pins that the report covers the steps it says it does, so that adding
+        # a profiler schedule later cannot quietly narrow it to the last one
+        def largest_call_count(steps: int) -> int:
+            caplog.clear()
+            monkeypatch.setenv(SCIENCEBEAM_DELFT_PROFILE_STEPS, str(steps))
+            trainer = Trainer(_model(), _training_config(max_epoch=1))
+            with caplog.at_level(logging.INFO, logger=RESOURCE_USAGE_LOGGER):
+                trainer.train(_batches(count=4))
+            table = [r.getMessage() for r in caplog.records if 'profile, by' in r.getMessage()][0]
+            return max(
+                int(match.group(1))
+                for match in re.finditer(r'(\d+)\s*$', table, re.MULTILINE)
+            )
+
+        assert largest_call_count(3) > largest_call_count(1)
+
+    def test_should_report_what_it_managed_when_the_epoch_is_shorter(
+        self, caplog, monkeypatch
+    ):
+        # asking for more steps than the epoch has must still produce a report
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_PROFILE_STEPS, '99')
+        trainer = Trainer(_model(), _training_config(max_epoch=1))
+        with caplog.at_level(logging.INFO):
+            trainer.train(_batches(count=2))
+        assert any('profile, by' in r.getMessage() for r in caplog.records)
+
+
+class TestTrainerTorchCompile:
+    def test_should_not_compile_unless_asked_for(self, caplog, monkeypatch):
+        monkeypatch.delenv(SCIENCEBEAM_DELFT_TORCH_COMPILE, raising=False)
+        trainer = Trainer(_model(), _training_config(max_epoch=1))
+        with caplog.at_level(logging.INFO, logger=TRAINER_LOGGER):
+            trainer.train(_batches())
+        assert not [
+            r for r in caplog.records if 'compiling' in r.getMessage()
+        ]
+
+    def test_should_stop_splitting_the_forward_pass_when_compiling(self, monkeypatch):
+        # dynamo replaces the model's Python, so its own timers would report a
+        # forward pass that no longer runs that way
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_TORCH_COMPILE, '1')
+        monkeypatch.setenv(SCIENCEBEAM_DELFT_STEP_TIMING, '1')
+        model = _model()
+        trainer = Trainer(model, _training_config(max_epoch=1))
+        assert all(timer.enabled for timer in model.step_timers.values())
+        try:
+            trainer.train(_batches())
+        except Exception:  # pylint: disable=broad-except
+            # compiling can fail on an architecture or a torch this old; what
+            # matters here is that the timers were switched off before it ran
+            pass
+        assert not any(timer.enabled for timer in model.step_timers.values())
