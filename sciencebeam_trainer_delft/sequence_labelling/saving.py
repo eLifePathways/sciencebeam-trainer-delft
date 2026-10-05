@@ -9,6 +9,11 @@ sciencebeam-parser:
     model_weights.pt     torch state dict
     meta.json            optional training metadata, read when resuming
 
+A directory saved by delft holds `model.safetensors` in place of
+`model_weights.pt`, and no pickle. It is loaded as well, which is what makes
+the models delft publishes on the Hugging Face Hub usable here. Finding and
+fetching such a model, and reading either weights format, is left to delft.
+
 Only the weights file changed format with the PyTorch migration. A directory
 written by an earlier release holds `model_weights.hdf5` instead, which is
 still a supported input: it is converted when it is loaded, in memory, so the
@@ -30,6 +35,8 @@ from delft.sequenceLabelling.preprocess import (
     FeaturesPreprocessor as DelftFeaturesPreprocessor,
     Preprocessor as DelftWordPreprocessor
 )
+from delft.utilities.hub_models import is_remote, resolve_model
+from delft.utilities.weights import find_weight_file, load_weights
 
 from sciencebeam_trainer_delft.utils.typing import T, U, V
 from sciencebeam_trainer_delft.utils.cloud_support import auto_upload_from_local_file
@@ -95,9 +102,13 @@ def migrate_legacy_preprocessor_state_if_necessary(
             preprocessor.indice_tag,
             int
         )
-    if not hasattr(preprocessor, "return_bert_embeddings"):
-        preprocessor.return_bert_embeddings = False
-        LOGGER.info('migrated legacy preprocessor to add return_bert_embeddings=False')
+    # what a later delft added takes the value its constructor gives it: delft's
+    # data loader reads it (feature_preprocessor, for one), and a preprocessor
+    # pickled by an earlier delft does not have it
+    for name, value in vars(DelftWordPreprocessor()).items():
+        if not hasattr(preprocessor, name):
+            setattr(preprocessor, name, value)
+            LOGGER.info('migrated legacy preprocessor to add %s=%r', name, value)
     return preprocessor
 
 
@@ -269,6 +280,12 @@ class ModelLoader(_BaseModelSaverLoader):
         self.download_manager = download_manager
 
     def download_model(self, dir_path: str) -> str:
+        if is_remote(dir_path):
+            # the Hugging Face Hub or an archive over HTTP: delft fetches both
+            return resolve_model(
+                dir_path,
+                cache_dir=os.path.join(str(self.download_manager.download_dir), 'models')
+            )
         if not dir_path.endswith('.tar.gz'):
             return dir_path
         local_dir_path = str(self.download_manager.get_local_file(
@@ -322,7 +339,8 @@ class ModelLoader(_BaseModelSaverLoader):
         model: nn.Module,
         weight_file: Optional[str] = None
     ):
-        filepath = os.path.join(directory, weight_file or self.weight_file)
+        # the weights in the other format when the ones asked for are not there
+        filepath = find_weight_file(directory, weight_file or self.weight_file)
         if weight_file is None and not file_exists(filepath):
             # a directory saved before the PyTorch migration holds Keras weights
             # instead; they are converted on load rather than rejected
@@ -344,4 +362,4 @@ class ModelLoader(_BaseModelSaverLoader):
             # directory it loaded from
             load_keras_weights_into_model(local_filepath, model)
             return
-        model.load_state_dict(torch.load(local_filepath, map_location='cpu'))
+        load_weights(model, local_filepath, device='cpu')

@@ -33,22 +33,9 @@ from sciencebeam_trainer_delft.sequence_labelling.masking import (
     run_masked_final_state_lstm,
     run_masked_lstm
 )
-from sciencebeam_trainer_delft.sequence_labelling.upstream_patches import (
-    patch_chain_crf_masked_decode,
-    patch_chain_crf_masked_free_energy
-)
 
 
 LOGGER = logging.getLogger(__name__)
-
-
-# a mask reaches the CRF from every architecture here, and upstream's ChainCRF
-# ignores it in the partition function and decodes from the padded end, so
-# without these the mask does not make the loss or the tags batch-independent.
-# applied here rather than in get_model, so that constructing an architecture
-# directly is safe too
-patch_chain_crf_masked_free_energy()
-patch_chain_crf_masked_decode()
 
 
 class CharacterEncoder(nn.Module):
@@ -413,10 +400,10 @@ def is_model_stateful(model: nn.Module) -> bool:
 def to_padded_tag_indices(decoded, sequence_length: int) -> torch.Tensor:
     """Returns `[batch, sequence_length]` tag indices, whichever CRF decoded them.
 
-    `ChainCRF` decodes to a tensor of the full width. The pytorch-crf based
-    `CRF` decodes to one list per sequence, and a masked decode truncates each
-    to its own length, so the padding is filled back in here: callers expect
-    one tag per position.
+    Both CRFs decode to one list per sequence. `ChainCRF` gives each the full
+    width, while the pytorch-crf based `CRF` truncates each to its own length
+    when masked, so the padding is filled back in here: callers expect one tag
+    per position.
     """
     if isinstance(decoded, torch.Tensor):
         return decoded

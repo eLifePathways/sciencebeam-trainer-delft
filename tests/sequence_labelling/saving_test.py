@@ -19,7 +19,8 @@ from sciencebeam_trainer_delft.sequence_labelling.saving import (
     ModelSaver,
     ModelLoader,
     get_preprocessor_json,
-    get_preprocessor_for_json
+    get_preprocessor_for_json,
+    migrate_legacy_preprocessor_state_if_necessary
 )
 
 from ..test_utils import log_on_exception
@@ -79,6 +80,33 @@ def get_normalized_vars_with_type(obj) -> dict:
         'type': type(obj).__qualname__,
         'vars': normalized_vars
     }
+
+
+class TestMigrateLegacyPreprocessorState:
+    def _legacy_preprocessor(self) -> DelftWordPreprocessor:
+        """A preprocessor as an earlier delft pickled it, before some attributes existed."""
+        preprocessor = DelftWordPreprocessor(return_features=True)
+        preprocessor.fit(SAMPLE_X, SAMPLE_Y)
+        for name in (
+            'feature_preprocessor', 'return_chars', 'return_bert_embeddings', 'indice_tag'
+        ):
+            delattr(preprocessor, name)
+        return preprocessor
+
+    def test_should_give_what_a_later_delft_added_its_default(self):
+        preprocessor = migrate_legacy_preprocessor_state_if_necessary(self._legacy_preprocessor())
+        assert preprocessor.feature_preprocessor is None
+        assert preprocessor.return_chars is False
+        assert preprocessor.return_bert_embeddings is False
+        # what delft's data loader reads of it
+        assert preprocessor.return_continuous_features is False
+
+    def test_should_keep_what_the_pickle_holds(self):
+        preprocessor = migrate_legacy_preprocessor_state_if_necessary(self._legacy_preprocessor())
+        assert preprocessor.return_features is True
+        assert preprocessor.indice_tag == {
+            index: tag for tag, index in preprocessor.vocab_tag.items()
+        }
 
 
 class TestJsonSerializePreprocessors:
