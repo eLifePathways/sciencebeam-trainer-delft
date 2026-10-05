@@ -160,7 +160,9 @@ def _preprocessor():
 
 @pytest.fixture(name='embeddings')
 def _embeddings():
-    embeddings = MagicMock(name='embeddings')
+    # static embeddings: delft takes anything with `get_sentence_vectors` to be
+    # contextual, and a MagicMock would otherwise answer to every attribute
+    embeddings = MagicMock(name='embeddings', spec=['get_word_vector', 'embed_size'])
     embeddings.get_word_vector.side_effect = get_word_vector
     embeddings.embed_size = len(get_word_vector(WORD_1))
     return embeddings
