@@ -35,6 +35,9 @@ jobs:
           DOCKER_IMAGE="${{ env.DOCKER_IMAGE_NAME }}"
           VERSION=""
           GIT_BRANCH=${GITHUB_BASE_REF:-${GITHUB_REF#refs/heads/}}
+          # a docker tag takes [a-zA-Z0-9._-] only, and a branch name may hold
+          # anything a ref may, `feature/x` above all
+          GIT_BRANCH_TAG=${GIT_BRANCH//[^a-zA-Z0-9._-]/-}
           SHORT_SHA=${GITHUB_SHA::8}
           TIMESTAMP=`date --utc +%Y%m%d.%H%M`
           if [[ $GITHUB_REF == refs/tags/v* ]]; then
@@ -49,9 +52,9 @@ jobs:
             PYTHON_PACKAGE_VERSION=`./scripts/dev/get-test-pypi-version.sh ${GITHUB_SHA}`
             IMAGE_NAME="${DOCKER_IMAGE}_unstable"
             IMAGE_TAG="${GITHUB_SHA}"
-            TAG_LINES="${TAG_LINES}delft.tags=${IMAGE_NAME}:${GIT_BRANCH}-${SHORT_SHA}-${TIMESTAMP}\n"
-            TAG_LINES="${TAG_LINES}delft.tags=${IMAGE_NAME}:${GIT_BRANCH}-${SHORT_SHA}-${TIMESTAMP}-cpu\n"
-            TAG_LINES="${TAG_LINES}delft-gpu.tags=${IMAGE_NAME}:${GIT_BRANCH}-${SHORT_SHA}-${TIMESTAMP}-gpu\n"
+            TAG_LINES="${TAG_LINES}delft.tags=${IMAGE_NAME}:${GIT_BRANCH_TAG}-${SHORT_SHA}-${TIMESTAMP}\n"
+            TAG_LINES="${TAG_LINES}delft.tags=${IMAGE_NAME}:${GIT_BRANCH_TAG}-${SHORT_SHA}-${TIMESTAMP}-cpu\n"
+            TAG_LINES="${TAG_LINES}delft-gpu.tags=${IMAGE_NAME}:${GIT_BRANCH_TAG}-${SHORT_SHA}-${TIMESTAMP}-gpu\n"
           fi
           # the unsuffixed tags stay for compatibility, and are the same image as -cpu
           TAG_LINES="${TAG_LINES}delft.tags=${IMAGE_NAME}:${IMAGE_TAG}\n"
