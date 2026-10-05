@@ -8,6 +8,7 @@ disable=
     too-many-branches,
     too-many-instance-attributes,
     too-many-public-methods,
+    too-many-ancestors,
     no-else-return,
     duplicate-code,
     consider-using-f-string,
