@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - main
+      # REVERT BEFORE MERGING. A pull request builds the image but does not
+      # publish it, so there is no tag for Vertex AI to pull and this branch
+      # cannot be trained from. Listing it here makes a push to it a `push`
+      # event, which publishes to GHCR as the unstable image, so the Artifact
+      # Registry copy can then be run against this branch's commit sha.
+      - feature/hub-models
     tags:
       - 'v*'  # Push events to matching v*, i.e. v1.0, v20.15.10
   pull_request:
