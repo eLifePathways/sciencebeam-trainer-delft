@@ -25,10 +25,12 @@ gcs = [
     "gcsfs>=2025.12.0",
 ]
 delft = [
-    # 1.1.0 is a floor rather than a preference: the character and token masking
-    # of BidLSTM_CRF, and the ChainCRF that registers its transitions when it is
-    # constructed, are relied on here and were patched in at runtime before it
-    "delft>=1.1.0",
+    # 1.2.0 is a floor rather than a preference: loading models from the Hugging
+    # Face Hub and weights saved as safetensors arrived in it, as did the
+    # character and token masking of BidLSTM_CRF and the ChainCRF that registers
+    # its transitions when it is constructed (1.1.0), which were patched in at
+    # runtime before
+    "delft>=1.2.0",
     "h5py>=3.16.0",
 ]
 

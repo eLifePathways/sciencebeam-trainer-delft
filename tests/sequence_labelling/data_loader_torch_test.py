@@ -40,7 +40,7 @@ def _arrays(
     word_embedding_size: int = WORD_EMBEDDING_SIZE,
     with_features: bool = True
 ) -> List[np.ndarray]:
-    arrays = [
+    arrays: List[np.ndarray] = [
         np.zeros((BATCH_SIZE, SEQUENCE_LENGTH, word_embedding_size), dtype=np.float32),
         np.ones((BATCH_SIZE, SEQUENCE_LENGTH, MAX_CHAR_LENGTH), dtype=np.int32)
     ]

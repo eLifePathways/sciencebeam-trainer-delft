@@ -191,6 +191,7 @@ class GrobidTrainerSubCommand(SubCommand):
                 concatenated_embeddings_token_count=args.concatenated_embeddings_token_count,
                 use_word_embeddings=args.use_word_embeddings,
                 use_features_indices_input=args.use_features_indices_input,
+                features_vocabulary_size=args.features_vocabulary_size,
                 continuous_features_indices=args.continuous_features_indices,
                 features_lstm_units=args.features_lstm_units,
                 stateful=args.stateful,

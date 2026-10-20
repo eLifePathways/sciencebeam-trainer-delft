@@ -264,7 +264,9 @@ def _default_args(
         output_path=str(model_base_path),
         architecture='CustomBidLSTM_CRF',
         word_lstm_units=11,
-        features_indices=list(range(7, 1 + 10)),
+        # block and line position: 7 and 8, suffixes, have too many distinct values
+        # for the architectures that take the features as indices
+        features_indices=list(range(9, 1 + 10)),
         embedding_registry_path=str(embedding_registry_path)
     )
 

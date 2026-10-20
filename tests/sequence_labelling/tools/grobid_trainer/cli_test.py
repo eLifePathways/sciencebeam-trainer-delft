@@ -94,6 +94,17 @@ class TestGrobidTrainer:
             ])
             assert opt.mask_padded_tokens is False
 
+        def test_should_default_the_features_vocabulary_size_to_upstream_one(self):
+            opt = parse_args(['header', 'train', '--input', INPUT_PATH_1])
+            assert opt.features_vocabulary_size == 12
+
+        def test_should_allow_raising_the_features_vocabulary_size(self):
+            opt = parse_args([
+                'header', 'train', '--input', INPUT_PATH_1,
+                '--features-vocabulary-size', '200'
+            ])
+            assert opt.features_vocabulary_size == 200
+
         def test_should_refuse_inconsistent_feature_lengths_by_default(self):
             opt = parse_args(['header', 'train', '--input', INPUT_PATH_1])
             assert opt.on_inconsistent_feature_lengths == FeatureLengthModes.FAIL
