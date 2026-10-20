@@ -339,8 +339,16 @@ class ModelLoader(_BaseModelSaverLoader):
         model: nn.Module,
         weight_file: Optional[str] = None
     ):
-        # the weights in the other format when the ones asked for are not there
-        filepath = find_weight_file(directory, weight_file or self.weight_file)
+        requested_weight_file = weight_file or self.weight_file
+        try:
+            # the weights in the other format when the ones asked for are not there
+            filepath = find_weight_file(directory, requested_weight_file)
+        except ValueError:
+            # DeLFT (since 1.2.0) refuses a directory holding only Keras weights,
+            # which the fallback below converts instead
+            if weight_file is not None or not file_exists(get_legacy_weight_file_path(directory)):
+                raise
+            filepath = os.path.join(directory, requested_weight_file)
         if weight_file is None and not file_exists(filepath):
             # a directory saved before the PyTorch migration holds Keras weights
             # instead; they are converted on load rather than rejected
