@@ -624,6 +624,7 @@ def load_delft_model(
     fold_count: int = 1,
     batch_size: int = 20,
     embedding_manager: Optional[EmbeddingManager] = None,
+    weight_file: Optional[str] = None,
     **kwargs
 ):
     model = Sequence(
@@ -641,7 +642,8 @@ def load_delft_model(
     )
 
     assert model_path
-    model.load_from(model_path)
+    # the weights to load where a model directory holds more than one
+    model.load_from(model_path, weight_file=weight_file)
     return model
 
 
