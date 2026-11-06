@@ -53,6 +53,7 @@ class TagUsingExistingModelsTestCaseTypedDict(TypedDict):
     input_path: str
     expected_tags: Sequence[ExpectedTagTypedDict]
     # engine: NotRequired[Literal['wapiti', 'delft']]
+    # weight_file: NotRequired[str]
 
 
 @pytest.fixture(name='download_manager', scope='session')
@@ -78,6 +79,7 @@ class TestTagUsingExistingModels:
         model_path = test_case['model_path']
         input_path = test_case['input_path']
         engine = test_case.get('engine', 'delft')
+        weight_file = test_case.get('weight_file')
         LOGGER.info('testing model: %s with input: %s', model_path, input_path)
         tag_output_path = tmp_path / 'tagged_output.xml'
         if engine == 'wapiti':
@@ -93,6 +95,7 @@ class TestTagUsingExistingModels:
             tag_input(
                 model_name='dummy-model-name',
                 model_path=model_path,
+                weight_file=weight_file,
                 input_paths=[input_path],
                 download_manager=download_manager,
                 limit=1,
