@@ -76,7 +76,7 @@ conflicts = [
 # PyPI refuses such URLs. The branch has the same version number, so the
 # floor above cannot tell them apart. Once released: floor to that version
 # and drop this source.
-delft = { git = "https://github.com/kermitt2/delft", rev = "9c7c7f845618b67ceafa433c16d6e66f78e6f813" }
+delft = { git = "https://github.com/kermitt2/delft", rev = "ff332f262019849f430bdb92502c385664808ec5" }
 torch = [
     { index = "pytorch-cpu", group = "cpu" },
     { index = "pytorch-cu130", group = "gpu" },

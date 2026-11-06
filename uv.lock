@@ -626,7 +626,7 @@ wheels = [
 [[package]]
 name = "delft"
 version = "1.2.0"
-source = { git = "https://github.com/kermitt2/delft?rev=9c7c7f845618b67ceafa433c16d6e66f78e6f813#9c7c7f845618b67ceafa433c16d6e66f78e6f813" }
+source = { git = "https://github.com/kermitt2/delft?rev=ff332f262019849f430bdb92502c385664808ec5#ff332f262019849f430bdb92502c385664808ec5" }
 dependencies = [
     { name = "huggingface-hub" },
     { name = "lmdb" },
@@ -2869,7 +2869,7 @@ gpu = [
 
 [package.metadata]
 requires-dist = [
-    { name = "delft", marker = "extra == 'delft'", git = "https://github.com/kermitt2/delft?rev=9c7c7f845618b67ceafa433c16d6e66f78e6f813" },
+    { name = "delft", marker = "extra == 'delft'", git = "https://github.com/kermitt2/delft?rev=ff332f262019849f430bdb92502c385664808ec5" },
     { name = "fsspec", specifier = ">=2025.12.0" },
     { name = "gcsfs", marker = "extra == 'gcs'", specifier = ">=2025.12.0" },
     { name = "h5py", marker = "extra == 'delft'", specifier = ">=3.16.0" },
