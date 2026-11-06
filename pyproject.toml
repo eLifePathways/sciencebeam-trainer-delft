@@ -70,6 +70,13 @@ conflicts = [
 ]
 
 [tool.uv.sources]
+# TEMPORARY, until a delft release after 1.2.0: reading a model from a
+# /resolve/ URL of the Hugging Face Hub, the raw files of a folder of a
+# repository, is on its fix/hub-resolve-urls branch only, and the 1.2.0 on
+# PyPI refuses such URLs. The branch has the same version number, so the
+# floor above cannot tell them apart. Once released: floor to that version
+# and drop this source.
+delft = { git = "https://github.com/kermitt2/delft", rev = "9c7c7f845618b67ceafa433c16d6e66f78e6f813" }
 torch = [
     { index = "pytorch-cpu", group = "cpu" },
     { index = "pytorch-cu130", group = "gpu" },

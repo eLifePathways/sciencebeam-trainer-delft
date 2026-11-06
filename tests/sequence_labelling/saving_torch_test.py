@@ -219,6 +219,7 @@ class TestModelLoaderDownloadModel:
         'hf://owner/repository/model-name',
         'hf://owner/repository@v1.1.0/model-name',
         'https://huggingface.co/owner/repository/tree/main/model-name',
+        'https://huggingface.co/owner/repository/resolve/main/task/engine/model-name',
         'https://example.org/models/model-name.zip',
         'https://example.org/models/model-name.tar.gz'
     ])
