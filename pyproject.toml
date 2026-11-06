@@ -25,12 +25,13 @@ gcs = [
     "gcsfs>=2025.12.0",
 ]
 delft = [
-    # 1.2.0 is a floor rather than a preference: loading models from the Hugging
-    # Face Hub and weights saved as safetensors arrived in it, as did the
-    # character and token masking of BidLSTM_CRF and the ChainCRF that registers
-    # its transitions when it is constructed (1.1.0), which were patched in at
-    # runtime before
-    "delft>=1.2.0",
+    # 1.2.1 is a floor rather than a preference: reading a model from a /resolve/
+    # URL of the Hugging Face Hub, the raw files of a folder of a repository,
+    # arrived in it, with a cache directory per URL; loading models from the Hub
+    # and weights saved as safetensors in 1.2.0; the character and token masking
+    # of BidLSTM_CRF and the ChainCRF that registers its transitions when it is
+    # constructed in 1.1.0, which were patched in at runtime before
+    "delft>=1.2.1",
     "h5py>=3.16.0",
 ]
 
@@ -70,13 +71,6 @@ conflicts = [
 ]
 
 [tool.uv.sources]
-# TEMPORARY, until a delft release after 1.2.0: reading a model from a
-# /resolve/ URL of the Hugging Face Hub, the raw files of a folder of a
-# repository, is on its fix/hub-resolve-urls branch only, and the 1.2.0 on
-# PyPI refuses such URLs. The branch has the same version number, so the
-# floor above cannot tell them apart. Once released: floor to that version
-# and drop this source.
-delft = { git = "https://github.com/kermitt2/delft", rev = "ff332f262019849f430bdb92502c385664808ec5" }
 torch = [
     { index = "pytorch-cpu", group = "cpu" },
     { index = "pytorch-cu130", group = "gpu" },
