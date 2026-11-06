@@ -190,3 +190,62 @@ test_tag_using_existing_model:
         regex: '.{10,}'
       - tag: author
         regex: '.{10,}'
+  # Models of the Hugging Face Hub, in the two shapes a model path takes:
+  #   - `https://huggingface.co/{owner}/{repository}/resolve/{revision}/{path}`,
+  #     the files of a repository as the Hub serves them, which name the model
+  #     directory itself -- the name of the model is not appended to it, and the
+  #     model sits wherever the repository puts it;
+  #   - `hf://{owner}/{repository}@{revision}/{model}`, a model of a repository
+  #     of models, delft downloading the folder of that one model.
+  # One case per way of getting a model, rather than one per model published:
+  # what is at stake here is the resolution of the path and the loading of what
+  # it gives, which the models of a shape share. Every path is pinned to a
+  # revision, so that a model published later does not change what is tested.
+  # The wapiti engine does not resolve a model through delft: the URL is a
+  # folder to this repo's download manager, as a GROBID one above it is.
+  - id: citation_hub_url_wapiti_grobid_only
+    engine: wapiti
+    model_path: https://huggingface.co/elifepathways/sciencebeam-sequence-models/resolve/e266cc546e035e0d41734b9403b9cb496b6895a1/citation/wapiti/2026-08-04_wapiti_grobid_090_grobid_only
+    input_path: https://github.com/elifesciences/sciencebeam-datasets/releases/download/grobid-0.9.0/delft-grobid-0.9.0-citation.train.gz
+    expected_tags:
+      - tag: booktitle
+        regex: '.{10,}'
+      - tag: editor
+        regex: '.{10,}'
+  - id: citation_hub_url_delft_scielo_preprints_ore
+    model_path: https://huggingface.co/elifepathways/sciencebeam-sequence-models/resolve/dd39a9d6246b94a4e5861cf548921a7a3f1ba0ca/citation/delft/2026-09-18_CustomBidLSTM_CRF_grobid_090_scielo_preprints_ore
+    input_path: https://github.com/elifesciences/sciencebeam-datasets/releases/download/grobid-0.9.0/delft-grobid-0.9.0-citation.train.gz
+    expected_tags:
+      - tag: booktitle
+        regex: '.{10,}'
+      - tag: editor
+        regex: '.{10,}'
+  # the line text this model reads as feature 32, which only the corpus carrying
+  # it has; it is also what puts the model on the data generator here rather than
+  # on delft's tagger, which the two models above label with
+  - id: segmentation_hub_url_delft_scielo_preprints_ore
+    model_path: https://huggingface.co/elifepathways/sciencebeam-sequence-models/resolve/eb37314ac4f24d0147406eaef94279b6a35d8e44/segmentation/delft/2026-10-16_CustomBidLSTM_CRF_grobid_090_scielo_preprints_ore_b50_flex_line_text
+    input_path: https://github.com/elifesciences/sciencebeam-datasets/releases/download/grobid-0.9.0/delft-grobid-0.9.0-segmentation-with-line-text.train.gz
+    expected_tags:
+      - tag: header
+        regex: '.{40,}'
+  - id: name_citation_hub_reference_delft_grobid
+    model_path: hf://sciencialab/grobid-model-name-citation@1b7a20928f9572c5a7b3180a82fbc4370df6189b/grobid-name-citation-BidLSTM_CRF_FEATURES-no_embeddings
+    input_path: https://github.com/elifesciences/sciencebeam-datasets/releases/download/grobid-0.9.0/delft-grobid-0.9.0-name-citation.train.gz
+    expected_tags:
+      - tag: forename
+        regex: '.{1,}'
+      - tag: surname
+        regex: '.{1,}'
+  # `weight_file` where the directory holds the retrained weights as
+  # `model.safetensors` beside a `model_weights.pt` of the model before them,
+  # which no longer matches their preprocessor
+  - id: affiliation_address_hub_reference_delft_grobid
+    model_path: hf://sciencialab/grobid-model-affiliation-address@fcb11e276cfe6be53f84e028d066c295ecb57773/grobid-affiliation-address-BidLSTM_CRF_FEATURES-no_embeddings
+    weight_file: model.safetensors
+    input_path: https://github.com/elifesciences/sciencebeam-datasets/releases/download/grobid-0.9.0/delft-grobid-0.9.0-affiliation-address.train.gz
+    expected_tags:
+      - tag: institution
+        regex: '.{10,}'
+      - tag: department
+        regex: '.{10,}'
