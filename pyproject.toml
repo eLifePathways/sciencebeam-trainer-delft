@@ -25,12 +25,6 @@ gcs = [
     "gcsfs>=2025.12.0",
 ]
 delft = [
-    # 1.2.1 is a floor rather than a preference: reading a model from a /resolve/
-    # URL of the Hugging Face Hub, the raw files of a folder of a repository,
-    # arrived in it, with a cache directory per URL; loading models from the Hub
-    # and weights saved as safetensors in 1.2.0; the character and token masking
-    # of BidLSTM_CRF and the ChainCRF that registers its transitions when it is
-    # constructed in 1.1.0, which were patched in at runtime before
     "delft>=1.2.1",
     "h5py>=3.16.0",
 ]
