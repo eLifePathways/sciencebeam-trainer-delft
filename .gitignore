@@ -22,4 +22,6 @@ launch_*.py
 
 *.pyc
 
+.idea
+
 .idea/
