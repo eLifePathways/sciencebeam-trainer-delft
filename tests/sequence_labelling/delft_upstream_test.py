@@ -19,6 +19,11 @@ from delft.sequenceLabelling.models import (
     BidLSTM_CRF,
     CharacterEncoder
 )
+from delft.sequenceLabelling.reader import _translate_tags_grobid_to_IOB
+
+from sciencebeam_trainer_delft.sequence_labelling.reader import (
+    translate_tags_grobid_to_IOB
+)
 
 
 NTAGS = 5
@@ -108,3 +113,13 @@ class TestCharacterEncoderMasking:
             assert torch.allclose(
                 model(padded)['logits'][:, :2], model(unpadded)['logits'], atol=1e-6
             )
+
+
+class TestTranslateTagsGrobidToIob:
+    """The reader here translates tags itself rather than importing the function."""
+
+    @pytest.mark.parametrize('tag', [
+        '<other>', 'I-<other>', '<title>', 'I-<title>', 'O', 'B-title', ''
+    ])
+    def test_should_translate_a_tag_as_upstream_does(self, tag: str):
+        assert translate_tags_grobid_to_IOB(tag) == _translate_tags_grobid_to_IOB(tag)

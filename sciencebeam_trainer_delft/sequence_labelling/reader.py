@@ -5,10 +5,24 @@ from typing import Iterable, List, Optional, Tuple
 
 import numpy as np
 
-from delft.sequenceLabelling.reader import _translate_tags_grobid_to_IOB
-
 
 LOGGER = logging.getLogger(__name__)
+
+
+def translate_tags_grobid_to_IOB(tag: str) -> str:  # pylint: disable=invalid-name
+    """Convert labels as used by GROBID to the more standard IOB2.
+
+    Kept here rather than imported from `delft.sequenceLabelling.reader`, whose
+    package imports torch and transformers: reading a CRF file needs none of that,
+    and `delft_upstream_test` holds this to what upstream computes.
+    """
+    if tag.endswith('other>'):
+        return 'O'
+    if tag.startswith('I-'):
+        return 'B-' + tag[2:]
+    if tag.startswith('<'):
+        return 'I-' + tag
+    return tag
 
 
 # partially copied from delft/sequenceLabelling/reader.py
@@ -32,7 +46,7 @@ def iter_load_data_and_labels_crf_lines(
             tag = pieces[len(pieces)-1]
             localFeatures = pieces[1:len(pieces)-1]
             tokens.append(token)
-            tags.append(_translate_tags_grobid_to_IOB(tag))
+            tags.append(translate_tags_grobid_to_IOB(tag))
             features.append(localFeatures)
     if tokens:
         yield tokens, tags, features
